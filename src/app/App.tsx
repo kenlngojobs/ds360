@@ -1,10 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "sonner";
 import { Sidebar, MobileHeader } from "./components/Sidebar";
 import { DocumentTemplateManagement } from "./components/DocumentTemplateManagement";
 import { UserManagement } from "./components/UserManagement";
 import { OfferingsManagement } from "./components/OfferingsManagement";
 import { LoginPage } from "./components/LoginPage";
+import { RegisterPage } from "./components/RegisterPage";
+import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
+import { ResetPasswordPage } from "./components/ResetPasswordPage";
+import { apiVerifyEmail } from "./auth/api";
 
 // ── Placeholder module for unbuilt sections ─────────────────────────
 function PlaceholderModule({ title }: { title: string }) {
@@ -49,16 +53,42 @@ const navLabels: Record<string, string> = {
 };
 
 const SESSION_KEY = "ds360_session";
+type AuthView = "login" | "register" | "forgot" | "reset" | "verify-pending";
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    () => sessionStorage.getItem(SESSION_KEY) === "1"
+  const [token, setToken] = useState<string | null>(
+    () => sessionStorage.getItem(SESSION_KEY)
   );
+  const [authView, setAuthView] = useState<AuthView>("login");
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [verifyMsg, setVerifyMsg] = useState("");
   const [activeModule, setActiveModule] = useState("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openUserId, setOpenUserId] = useState<string | undefined>(undefined);
   const [profileTrigger, setProfileTrigger] = useState(0);
+
+  // Handle ?verify= and ?reset= URL params from email links
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const verify = params.get("verify");
+    const reset  = params.get("reset");
+    if (verify) {
+      // Clear URL param
+      window.history.replaceState({}, "", window.location.pathname);
+      apiVerifyEmail(verify).then(res => {
+        setVerifyMsg(res.ok
+          ? "Email verified! You can now log in."
+          : (res.error ?? "Verification link is invalid or already used.")
+        );
+        setAuthView("verify-pending");
+      });
+    } else if (reset) {
+      window.history.replaceState({}, "", window.location.pathname);
+      setResetToken(reset);
+      setAuthView("reset");
+    }
+  }, []);
 
   // Handle sidebar nav changes — clear openUserId when navigating normally
   const handleNavChange = (id: string) => {
@@ -73,19 +103,46 @@ export default function App() {
     setActiveModule("users");
   };
 
-  const handleLogin = () => {
-    sessionStorage.setItem(SESSION_KEY, "1");
-    setIsLoggedIn(true);
+  const handleLogin = (t: string) => {
+    sessionStorage.setItem(SESSION_KEY, t);
+    setToken(t);
   };
 
   const handleSignOut = () => {
     sessionStorage.removeItem(SESSION_KEY);
-    setIsLoggedIn(false);
+    setToken(null);
+    setAuthView("login");
   };
 
-  // Show login screen if not authenticated
-  if (!isLoggedIn) {
-    return <LoginPage onLogin={handleLogin} />;
+  // Show auth screens if not logged in
+  if (!token) {
+    if (authView === "register") return <RegisterPage onBack={() => setAuthView("login")} />;
+    if (authView === "forgot")   return <ForgotPasswordPage onBack={() => setAuthView("login")} />;
+    if (authView === "reset" && resetToken) return <ResetPasswordPage token={resetToken} onDone={() => setAuthView("login")} />;
+    if (authView === "verify-pending") return (
+      <div className="flex items-center justify-center h-full w-full bg-white p-8">
+        <div className="flex flex-col items-center gap-4 text-center max-w-[400px]">
+          <div className="w-16 h-16 rounded-full bg-ds-purple-light flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
+              <path d="M20 6L9 17l-5-5" stroke="#46367F" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <p className="font-['Poppins',sans-serif] text-[15px] text-[#3a3a3a]" style={{ fontWeight: 500 }}>{verifyMsg}</p>
+          <button onClick={() => setAuthView("login")}
+            className="flex items-center justify-center w-[180px] h-[45px] rounded-[100px] bg-[#46367f] hover:bg-ds-purple-hover text-white font-['Poppins',sans-serif] text-[14px] transition-all cursor-pointer border-none"
+            style={{ fontWeight: 500 }}>
+            Go to Login
+          </button>
+        </div>
+      </div>
+    );
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        onRegister={() => setAuthView("register")}
+        onForgot={() => setAuthView("forgot")}
+      />
+    );
   }
 
   // Render the correct module content

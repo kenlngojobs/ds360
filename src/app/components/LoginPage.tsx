@@ -1,7 +1,7 @@
 import { useState } from "react";
 import svgPaths from "../../imports/svg-a866f81vzf";
 import imgLogo from "figma:asset/2a2c6e1ca3f5c4ba173c8c3bf0d9759ec43064b0.png";
-import { validateCredentials } from "../auth/credentials";
+import { apiLogin } from "../auth/api";
 
 // ── DS360 Logo SVG ──────────────────────────────────────────────────
 function Ds360Logo() {
@@ -61,10 +61,12 @@ function EyeClosedIcon() {
 
 // ── Main Login Page Component ───────────────────────────────────────
 interface LoginPageProps {
-  onLogin: () => void;
+  onLogin: (token: string) => void;
+  onRegister: () => void;
+  onForgot: () => void;
 }
 
-export function LoginPage({ onLogin }: LoginPageProps) {
+export function LoginPage({ onLogin, onRegister, onForgot }: LoginPageProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -82,11 +84,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
     setIsLoading(true);
     try {
-      const valid = await validateCredentials(email, password);
-      if (valid) {
-        onLogin();
+      const res = await apiLogin(email, password);
+      if (res.ok && typeof res.token === "string") {
+        onLogin(res.token);
       } else {
-        setError("Incorrect email or password. Please try again.");
+        setError(res.error ?? "Incorrect email or password. Please try again.");
       }
     } catch {
       setError("An error occurred. Please try again.");
@@ -254,6 +256,29 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               )}
             </button>
           </form>
+
+          {/* Secondary links */}
+          <div className="flex flex-col items-center gap-2 w-full">
+            <button
+              type="button"
+              onClick={onForgot}
+              className="font-['Poppins',sans-serif] text-[13px] text-ds-purple hover:underline cursor-pointer bg-transparent border-none"
+              style={{ fontWeight: 500 }}
+            >
+              Forgot your password?
+            </button>
+            <p className="font-['Poppins',sans-serif] text-[13px] text-[#5b5b5b]" style={{ fontWeight: 400 }}>
+              Don't have an account?{" "}
+              <button
+                type="button"
+                onClick={onRegister}
+                className="text-ds-purple hover:underline cursor-pointer bg-transparent border-none font-['Poppins',sans-serif] text-[13px]"
+                style={{ fontWeight: 500 }}
+              >
+                Request Access
+              </button>
+            </p>
+          </div>
 
           {/* Mobile copyright */}
           <p className="md:hidden font-['Poppins',sans-serif] text-[11px] text-ds-gray text-center mt-4" style={{ fontWeight: 400 }}>
