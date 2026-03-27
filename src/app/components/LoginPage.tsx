@@ -1,6 +1,7 @@
 import { useState } from "react";
 import svgPaths from "../../imports/svg-a866f81vzf";
 import imgLogo from "figma:asset/2a2c6e1ca3f5c4ba173c8c3bf0d9759ec43064b0.png";
+import { validateCredentials } from "../auth/credentials";
 
 // ── DS360 Logo SVG ──────────────────────────────────────────────────
 function Ds360Logo() {
@@ -70,23 +71,28 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Prototype mode — auto-fill credentials on click, then log in
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
-    const len = 10 + Math.floor(Math.random() * 5);
-    const randomPass = Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-
-    setEmail("ken@samincsolutions.com");
-    setPassword(randomPass);
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
 
     setIsLoading(true);
-    setTimeout(() => {
+    try {
+      const valid = await validateCredentials(email, password);
+      if (valid) {
+        onLogin();
+      } else {
+        setError("Incorrect email or password. Please try again.");
+      }
+    } catch {
+      setError("An error occurred. Please try again.");
+    } finally {
       setIsLoading(false);
-      onLogin();
-    }, 1200);
+    }
   };
 
   return (

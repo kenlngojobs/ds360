@@ -48,8 +48,12 @@ const navLabels: Record<string, string> = {
   settings: "Settings",
 };
 
+const SESSION_KEY = "ds360_session";
+
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(
+    () => sessionStorage.getItem(SESSION_KEY) === "1"
+  );
   const [activeModule, setActiveModule] = useState("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -69,9 +73,19 @@ export default function App() {
     setActiveModule("users");
   };
 
+  const handleLogin = () => {
+    sessionStorage.setItem(SESSION_KEY, "1");
+    setIsLoggedIn(true);
+  };
+
+  const handleSignOut = () => {
+    sessionStorage.removeItem(SESSION_KEY);
+    setIsLoggedIn(false);
+  };
+
   // Show login screen if not authenticated
   if (!isLoggedIn) {
-    return <LoginPage onLogin={() => setIsLoggedIn(true)} />;
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   // Render the correct module content
@@ -103,7 +117,7 @@ export default function App() {
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           onMobileClose={() => setMobileOpen(false)}
           onNavChange={handleNavChange}
-          onSignOut={() => setIsLoggedIn(false)}
+          onSignOut={handleSignOut}
           onUserProfile={handleUserProfile}
         />
 
