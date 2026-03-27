@@ -6,7 +6,29 @@
       "Bash(grep -E \"\\\\.tsx$\")",
       "Bash(npx tsc:*)",
       "Bash(node_modules/.bin/tsc --noEmit)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx vite:*)",
+      "Bash(curl --ftp-create-dirs -T dist/index.html \"ftp://ftp.imaginizedlabs.com/ds360/dist/index.html\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl --ftp-create-dirs -T dist/assets/index-D69d62pr.css \"ftp://ftp.imaginizedlabs.com/ds360/dist/assets/index-D69d62pr.css\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl --ftp-create-dirs -T dist/assets/index-Dj-Qu2E4.js \"ftp://ftp.imaginizedlabs.com/ds360/dist/assets/index-Dj-Qu2E4.js\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl -T dist/index.html \"ftp://ftp.imaginizedlabs.com/index.html\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl --ftp-create-dirs -T dist/assets/index-D69d62pr.css \"ftp://ftp.imaginizedlabs.com/assets/index-D69d62pr.css\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl --ftp-create-dirs -T dist/assets/index-Dj-Qu2E4.js \"ftp://ftp.imaginizedlabs.com/assets/index-Dj-Qu2E4.js\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl -l \"ftp://ftp.imaginizedlabs.com/dist/\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl -l \"ftp://ftp.imaginizedlabs.com/dist/assets/\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl -l \"ftp://ftp.imaginizedlabs.com/\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl -T dist/index.html \"ftp://ftp.imaginizedlabs.com/dist/index.html\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl --ftp-create-dirs -T dist/assets/index-D69d62pr.css \"ftp://ftp.imaginizedlabs.com/dist/assets/index-D69d62pr.css\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "Bash(curl --ftp-create-dirs -T dist/assets/index-Dj-Qu2E4.js \"ftp://ftp.imaginizedlabs.com/dist/assets/index-Dj-Qu2E4.js\" --user \"claude@imaginizedlabs.com:PqvKi#nFATrvc4TIkc\")",
+      "WebFetch(domain:ds360.imaginizedlabs.com)",
+      "Bash(find C:Userskenln.claude -type f -name *.md)",
+      "Bash(python3 -c \":*)",
+      "Bash(node -e \":*)",
+      "Bash(node -e \"const crypto=require\\(''crypto''\\),fs=require\\(''fs''\\),path=require\\(''path''\\);const dist=''C:/Users/kenln/Cowork/DS360/dist'';const manifest={};function walk\\(dir\\){for\\(const f of fs.readdirSync\\(dir\\)\\){const full=path.join\\(dir,f\\);if\\(fs.statSync\\(full\\).isDirectory\\(\\)\\)walk\\(full\\);else{const rel=path.relative\\(dist,full\\).split\\(path.sep\\).join\\(''/''\\);manifest[rel]=crypto.createHash\\(''md5''\\).update\\(fs.readFileSync\\(full\\)\\).digest\\(''hex''\\);}}}walk\\(dist\\);const out=''C:/Users/kenln/Cowork/DS360/.claude/ds360sync-manifest.json'';fs.mkdirSync\\(path.dirname\\(out\\),{recursive:true}\\);fs.writeFileSync\\(out,JSON.stringify\\(manifest,null,2\\)\\);console.log\\(JSON.stringify\\(manifest,null,2\\)\\);\")",
+      "Bash(node -e \"const crypto=require\\(''crypto''\\),fs=require\\(''fs''\\),path=require\\(''path''\\);const dist=''C:/Users/kenln/Cowork/DS360/dist'';const mf=''C:/Users/kenln/Cowork/DS360/.claude/ds360sync-manifest.json'';const old=fs.existsSync\\(mf\\)?JSON.parse\\(fs.readFileSync\\(mf,''utf8''\\)\\):{};const changed=[];function walk\\(dir\\){for\\(const f of fs.readdirSync\\(dir\\)\\){const full=path.join\\(dir,f\\);if\\(fs.statSync\\(full\\).isDirectory\\(\\)\\)walk\\(full\\);else{const rel=path.relative\\(dist,full\\).split\\(path.sep\\).join\\(''/''\\);const hash=crypto.createHash\\(''md5''\\).update\\(fs.readFileSync\\(full\\)\\).digest\\(''hex''\\);if\\(old[rel]!==hash\\)changed.push\\(rel\\);}}}walk\\(dist\\);console.log\\(JSON.stringify\\(changed\\)\\);\")",
+      "Bash(node \"C:/Users/kenln/Cowork/DS360/.claude/ds360diff.js\")",
+      "Bash(where gh:*)",
+      "Bash(winget list:*)"
     ]
   }
 }
