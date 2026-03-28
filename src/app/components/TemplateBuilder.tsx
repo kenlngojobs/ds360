@@ -1109,11 +1109,6 @@ function buildCategories(
     },
   }));
 
-  const now = new Date();
-  const FORM_ELEMENTS_UNLOCK = new Date("2026-03-20T00:00:00");
-  const DATA_REPORT_UNLOCK = new Date("2026-03-27T00:00:00");
-  const CONTENT_TIER2_UNLOCK = new Date("2026-03-18T13:00:00Z"); // Mar 18 9 PM PHT (UTC+8)
-
   return [
     {
       name: "Document",
@@ -1136,50 +1131,38 @@ function buildCategories(
       widgets: [
         headerWidget,
         paragraphWidget,
-        ...(now >= CONTENT_TIER2_UNLOCK
-          ? [
-              imageWidget,
-              alertWidget,
-              repeaterWidget,
-            ]
-          : []),
+        imageWidget,
+        alertWidget,
+        repeaterWidget,
       ],
     },
-    ...(now >= FORM_ELEMENTS_UNLOCK
-      ? [
-          {
-            name: "Form Elements",
-            widgets: [
-              textBoxWidget,
-              textAreaWidget,
-              numberInputWidget,
-              attachmentWidget,
-              buttonWidget,
-              checkboxWidget,
-              radioButtonWidget,
-              dropdownWidget,
-              calendarWidget,
-              toggleWidget,
-              signatureWidget,
-            ],
-          },
-        ]
-      : []),
-    ...(now >= DATA_REPORT_UNLOCK
-      ? [
-          {
-            name: "Data",
-            widgets: [
-              internalFieldWidget,
-              partnerTagsWidget,
-            ],
-          },
-          {
-            name: "Report Fields",
-            widgets: reportFieldWidgets,
-          },
-        ]
-      : []),
+    {
+      name: "Form Elements",
+      widgets: [
+        textBoxWidget,
+        textAreaWidget,
+        numberInputWidget,
+        attachmentWidget,
+        buttonWidget,
+        checkboxWidget,
+        radioButtonWidget,
+        dropdownWidget,
+        calendarWidget,
+        toggleWidget,
+        signatureWidget,
+      ],
+    },
+    {
+      name: "Data",
+      widgets: [
+        internalFieldWidget,
+        partnerTagsWidget,
+      ],
+    },
+    {
+      name: "Report Fields",
+      widgets: reportFieldWidgets,
+    },
   ];
 }
 
