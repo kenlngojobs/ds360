@@ -10,12 +10,16 @@ $password = $b['password'] ?? '';
 if (!$email || !$password) json_err('Email and password are required.');
 if (!allowed_email($email))  json_err('Only @' . ALLOWED_DOMAIN . ' accounts are allowed.');
 
+// Block IP after too many failed attempts
+check_rate_limit();
+
 $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
 $stmt->execute([$email]);
 $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
 // Constant-time failure to prevent user enumeration
 if (!$user || !password_verify($password, $user['password_hash'])) {
+    record_failed_login();
     json_err('Incorrect email or password.');
 }
 if (!$user['email_verified']) {

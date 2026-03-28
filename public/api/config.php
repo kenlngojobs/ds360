@@ -14,6 +14,8 @@ require __DIR__ . '/../../env.php';
 
 define('TOKEN_BYTES',       32);   // session token length
 define('RESET_TTL_MINUTES', 60);   // password reset link expiry
+define('RATE_LIMIT_MAX',     5);   // max failed login attempts
+define('RATE_LIMIT_WINDOW', 600);  // window in seconds (10 min)
 
 // ── CORS ────────────────────────────────────────────────────────────
 header('Access-Control-Allow-Origin: ' . APP_URL);
@@ -87,4 +89,51 @@ function auth_user(): array {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$user) json_err('Unauthorized', 401);
     return $user;
+}
+
+// ── Rate limiting ────────────────────────────────────────────────────
+
+function client_ip(): string {
+    // Respect X-Forwarded-For behind cPanel proxy / CloudFlare
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        // Take the first (client) IP from the chain
+        $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+        return trim($parts[0]);
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+/**
+ * Check if the IP has exceeded the failed-login threshold.
+ * Also purges stale entries older than the window.
+ */
+function check_rate_limit(): void {
+    $ip     = client_ip();
+    $pdo    = db();
+    $window = RATE_LIMIT_WINDOW;
+    $max    = RATE_LIMIT_MAX;
+
+    // Purge entries older than the window (keeps table small)
+    $pdo->prepare('DELETE FROM login_attempts WHERE attempted_at < DATE_SUB(NOW(), INTERVAL ? SECOND)')
+        ->execute([$window]);
+
+    // Count recent failures for this IP
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM login_attempts WHERE ip_address = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL ? SECOND)'
+    );
+    $stmt->execute([$ip, $window]);
+    $count = (int) $stmt->fetchColumn();
+
+    if ($count >= $max) {
+        json_err('Too many login attempts. Please try again in 10 minutes.', 429);
+    }
+}
+
+/**
+ * Record a failed login attempt for the current IP.
+ */
+function record_failed_login(): void {
+    $ip   = client_ip();
+    $stmt = db()->prepare('INSERT INTO login_attempts (ip_address) VALUES (?)');
+    $stmt->execute([$ip]);
 }
