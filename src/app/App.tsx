@@ -9,6 +9,7 @@ import { RegisterPage } from "./components/RegisterPage";
 import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
 import { apiVerifyEmail } from "./auth/api";
+import { FeatureFlagProvider, useFlag } from "./auth/feature-flags";
 
 // ── Placeholder module for unbuilt sections ─────────────────────────
 function PlaceholderModule({ title }: { title: string }) {
@@ -145,15 +146,61 @@ export default function App() {
     );
   }
 
-  // Render the correct module content
+  return (
+    <FeatureFlagProvider token={token}>
+      <AuthenticatedApp
+        activeModule={activeModule}
+        onNavChange={handleNavChange}
+        sidebarCollapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        mobileOpen={mobileOpen}
+        onMobileOpen={() => setMobileOpen(true)}
+        onMobileClose={() => setMobileOpen(false)}
+        onSignOut={handleSignOut}
+        onUserProfile={handleUserProfile}
+        openUserId={openUserId}
+        profileTrigger={profileTrigger}
+      />
+    </FeatureFlagProvider>
+  );
+}
+
+// ── Authenticated shell — lives inside FeatureFlagProvider so hooks work ──
+function AuthenticatedApp({
+  activeModule, onNavChange, sidebarCollapsed, onToggleCollapse,
+  mobileOpen, onMobileOpen, onMobileClose, onSignOut, onUserProfile,
+  openUserId, profileTrigger,
+}: {
+  activeModule: string;
+  onNavChange: (id: string) => void;
+  sidebarCollapsed: boolean;
+  onToggleCollapse: () => void;
+  mobileOpen: boolean;
+  onMobileOpen: () => void;
+  onMobileClose: () => void;
+  onSignOut: () => void;
+  onUserProfile: () => void;
+  openUserId: string | undefined;
+  profileTrigger: number;
+}) {
+  const flagUsers = useFlag("module.users");
+  const flagDocTemplates = useFlag("module.document-templates");
+  const flagOfferings = useFlag("module.offerings");
+
   const renderModule = () => {
     switch (activeModule) {
       case "users":
-        return <UserManagement openUserId={openUserId} key={`users-${profileTrigger}`} />;
+        return flagUsers
+          ? <UserManagement openUserId={openUserId} key={`users-${profileTrigger}`} />
+          : <PlaceholderModule title="Users" />;
       case "document-templates":
-        return <DocumentTemplateManagement />;
+        return flagDocTemplates
+          ? <DocumentTemplateManagement />
+          : <PlaceholderModule title="Document Templates" />;
       case "offerings":
-        return <OfferingsManagement />;
+        return flagOfferings
+          ? <OfferingsManagement />
+          : <PlaceholderModule title="Offerings" />;
       default:
         return <PlaceholderModule title={navLabels[activeModule] ?? activeModule} />;
     }
@@ -162,23 +209,20 @@ export default function App() {
   return (
     <div className="flex flex-col h-full w-full bg-white overflow-hidden">
       <Toaster position="top-right" richColors closeButton />
-      {/* Mobile top bar */}
-      <MobileHeader onMenuToggle={() => setMobileOpen(true)} onUserProfile={handleUserProfile} />
+      <MobileHeader onMenuToggle={onMobileOpen} onUserProfile={onUserProfile} />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar */}
         <Sidebar
           activeItem={activeModule}
           collapsed={sidebarCollapsed}
           mobileOpen={mobileOpen}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          onMobileClose={() => setMobileOpen(false)}
-          onNavChange={handleNavChange}
-          onSignOut={handleSignOut}
-          onUserProfile={handleUserProfile}
+          onToggleCollapse={onToggleCollapse}
+          onMobileClose={onMobileClose}
+          onNavChange={onNavChange}
+          onSignOut={onSignOut}
+          onUserProfile={onUserProfile}
         />
 
-        {/* Main content */}
         <div className="flex-1 min-w-0 h-full overflow-hidden">
           {renderModule()}
         </div>
