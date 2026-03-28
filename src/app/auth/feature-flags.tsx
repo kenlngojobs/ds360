@@ -84,3 +84,30 @@ export function useFlag(key: string): boolean {
 export function useFeatureFlags(): FeatureFlagContextValue {
   return useContext(FeatureFlagContext);
 }
+
+/**
+ * Declarative feature gate.
+ * Renders children only when the given flag is enabled.
+ * Optional `fallback` renders in place when the flag is off (defaults to nothing).
+ *
+ * Usage:
+ *   <Gate flag="feature.canvas-add-global-style">
+ *     <AddStyleButton />
+ *   </Gate>
+ *
+ *   <Gate flag="feature.fancy-thing" fallback={<span>Coming soon</span>}>
+ *     <FancyThing />
+ *   </Gate>
+ */
+export function Gate({
+  flag,
+  children,
+  fallback = null,
+}: {
+  flag: string;
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
+  const enabled = useFlag(flag);
+  return <>{enabled ? children : fallback}</>;
+}
