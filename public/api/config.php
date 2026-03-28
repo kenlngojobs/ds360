@@ -9,10 +9,8 @@ define('APP_URL',        'https://ds360.imaginizedlabs.com');
 define('FROM_EMAIL',     'noreply@imaginizedlabs.com');
 define('FROM_NAME',      'DS360 Portal');
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'imaginizedlabs_imaginized_ds360');
-define('DB_USER', 'imaginizedlabs_ds360ken');
-define('DB_PASS', 'PqvKi#nFATrvc4TIkc');
+// DB credentials loaded from env.php (stored ABOVE web root for security)
+require __DIR__ . '/../../env.php';
 
 define('TOKEN_BYTES',       32);   // session token length
 define('RESET_TTL_MINUTES', 60);   // password reset link expiry

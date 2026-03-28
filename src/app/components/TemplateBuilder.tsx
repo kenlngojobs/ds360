@@ -6180,6 +6180,70 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Autosave to localStorage ─────────────────────────────────────────
+  const AUTOSAVE_KEY = "ds360_template_draft";
+  const AUTOSAVE_MS = 30_000; // 30 seconds
+  const DRAFT_MAX_AGE = 86_400_000; // 24 hours
+
+  const [draftAvailable, setDraftAvailable] = useState(false);
+  const draftRef = useRef<{ elements: CanvasElement[]; config: CanvasConfig } | null>(null);
+
+  // Check for recoverable draft on mount (only if canvas is empty)
+  useEffect(() => {
+    if (elements.length > 0) return;
+    try {
+      const raw = localStorage.getItem(AUTOSAVE_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.elements?.length > 0 && Date.now() - draft.timestamp < DRAFT_MAX_AGE) {
+          draftRef.current = { elements: draft.elements, config: draft.config };
+          setDraftAvailable(true);
+        } else {
+          localStorage.removeItem(AUTOSAVE_KEY);
+        }
+      }
+    } catch { /* corrupt draft — ignore */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const restoreDraft = useCallback(() => {
+    if (draftRef.current) {
+      onElementsChange(draftRef.current.elements);
+      onCanvasConfigChange(draftRef.current.config);
+    }
+    setDraftAvailable(false);
+    draftRef.current = null;
+  }, [onElementsChange, onCanvasConfigChange]);
+
+  const dismissDraft = useCallback(() => {
+    localStorage.removeItem(AUTOSAVE_KEY);
+    setDraftAvailable(false);
+    draftRef.current = null;
+  }, []);
+
+  // Periodic autosave
+  useEffect(() => {
+    const timer = setInterval(() => {
+      try {
+        if (elementsRef.current.length === 0) return;
+        localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+          elements: elementsRef.current,
+          config: canvasConfigRef.current,
+          timestamp: Date.now(),
+        }));
+      } catch { /* storage full or unavailable */ }
+    }, AUTOSAVE_MS);
+    return () => clearInterval(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Warn before leaving with unsaved work
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (elementsRef.current.length > 0) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   // ── Preview Mode (in-canvas preview toggle) ─────────────────────────
   const [previewMode, setPreviewMode] = useState(false);
   const previewModeRef = useRef(false);
@@ -6730,6 +6794,28 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
     <PreviewModeContext.Provider value={previewMode}>
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col h-full overflow-hidden">
+        {/* Draft recovery banner */}
+        {draftAvailable && (
+          <div className="flex items-center gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-200 shrink-0">
+            <svg viewBox="0 0 20 20" fill="none" className="w-4 h-4 shrink-0">
+              <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 11.5a.75.75 0 110-1.5.75.75 0 010 1.5zm.75-3.25a.75.75 0 01-1.5 0V7a.75.75 0 011.5 0v3.25z" fill="#d97706" />
+            </svg>
+            <span className="font-['Poppins',sans-serif] text-[12px] text-amber-800" style={{ fontWeight: 500 }}>
+              An unsaved draft was recovered. Restore it?
+            </span>
+            <button onClick={restoreDraft}
+              className="px-3 py-1 rounded-lg bg-ds-purple text-white font-['Poppins',sans-serif] text-[11px] hover:bg-ds-purple-dark transition-colors cursor-pointer border-none"
+              style={{ fontWeight: 600 }}>
+              Restore
+            </button>
+            <button onClick={dismissDraft}
+              className="px-3 py-1 rounded-lg bg-white text-ds-gray border border-ds-haze font-['Poppins',sans-serif] text-[11px] hover:bg-gray-50 transition-colors cursor-pointer"
+              style={{ fontWeight: 500 }}>
+              Discard
+            </button>
+          </div>
+        )}
+
         {/* Toolbar removed — controls now rendered in parent modal header */}
 
         {/* Three-panel layout */}
