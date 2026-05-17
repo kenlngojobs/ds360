@@ -3,3 +3,10 @@ dist/
 .env
 .env.local
 *.log
+".ftpquota"  
+"backups/"  
+"ds360_data/"  
+"_RESTORE_POINT_MANIFEST.txt"  
+".claude/worktrees/"  
+"index-ph-kngo-win.html"  
+"*-ph-kngo-win.*"  
