@@ -7,6 +7,10 @@ dist/
 "backups/"  
 "ds360_data/"  
 "_RESTORE_POINT_MANIFEST.txt"  
-".claude/worktrees/"  
-"index-ph-kngo-win.html"  
-"*-ph-kngo-win.*"  
+".claude/worktrees/"
+"index-ph-kngo-win.html"
+"*-ph-kngo-win.*"
+.opencode/
+.clinerules/
+.mavis/
+__pycache__/
