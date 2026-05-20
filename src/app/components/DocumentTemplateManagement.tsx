@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import svgPaths from "../../imports/svg-m2vo2ju2qk";
 import { TemplateTable, type TemplateDocument } from "./TemplateTable";
@@ -6,68 +6,17 @@ import { ImagesTab, initialImages, type ImageDocument } from "./ImagesTab";
 import { ReportFieldsTab, initialFields, type ReportField } from "./ReportFieldsTab";
 import { ReportTemplateTypesTab, initialTypes, type ReportTemplateType } from "./ReportTemplateTypesTab";
 import { CreateTemplateModal, type SavedTemplateData } from "./CreateTemplateModal";
+import {
+  templatesApi,
+  imagesApi,
+  reportFieldsApi,
+  reportTemplateTypesApi,
+  type ImageDocument as ApiImage,
+  type ReportField as ApiReportField,
+  type ReportTemplateType as ApiReportTemplateType,
+} from "../../services/api";
 
 const initialTemplates: TemplateDocument[] = [
-  {
-    id: "1",
-    name: "Assessment Docs - SAM Due Diligence",
-    active: true,
-    description: "Attachments for SAM Due Diligence",
-    approvalRequired: false,
-    readOnly: "No (Editable by partners)",
-    internalUseOnly: "Yes (Internal use only)",
-    templateTypeId: "4",
-  },
-  {
-    id: "2",
-    name: "Buyer Enrollment Request",
-    active: true,
-    description: "Completed for new buyers wishing to join SAM",
-    approvalRequired: false,
-    readOnly: "Yes (Partners cannot edit)",
-    internalUseOnly: "Yes (Internal use only)",
-    templateTypeId: "3",
-  },
-  {
-    id: "3",
-    name: "Buyer Profile Assessment Checklist 2023",
-    active: true,
-    description: "Buyer Profile Assessment Checklist 2023e Diligence",
-    approvalRequired: true,
-    readOnly: "Yes (Partners cannot edit)",
-    internalUseOnly: "Yes (Internal use only)",
-    templateTypeId: "3",
-  },
-  {
-    id: "4",
-    name: "Company Assessment - Follow-up",
-    active: true,
-    description: "Company Assessment - Follow-up",
-    approvalRequired: true,
-    readOnly: "No (Editable by partners)",
-    internalUseOnly: "No (Available to partners)",
-    templateTypeId: "3",
-  },
-  {
-    id: "5",
-    name: "DEBT BUYER ASSESSMENT SUMMARY",
-    active: true,
-    description: "DEBT BUYER ASSESSMENT SUMMARY",
-    approvalRequired: false,
-    readOnly: "No (Editable by partners)",
-    internalUseOnly: "No (Available to partners)",
-    templateTypeId: "3",
-  },
-  {
-    id: "6",
-    name: "Debt Buyer Profile - 2023",
-    active: true,
-    description: "Debt Buyer Profile (Company Overview) - Revised",
-    approvalRequired: true,
-    readOnly: "No (Editable by partners)",
-    internalUseOnly: "Yes (Internal use only)",
-    templateTypeId: "6",
-  },
   {
     id: "7",
     name: "SAM Partner Onboarding Checklist",
@@ -77,16 +26,6 @@ const initialTemplates: TemplateDocument[] = [
     readOnly: "No (Editable by partners)",
     internalUseOnly: "Yes (Internal use only)",
     templateTypeId: "2",
-  },
-  {
-    id: "8",
-    name: "Annual Compliance Review Form",
-    active: true,
-    description: "Annual review form for compliance verification",
-    approvalRequired: true,
-    readOnly: "Yes (Partners cannot edit)",
-    internalUseOnly: "No (Available to partners)",
-    templateTypeId: "5",
   },
 ];
 
@@ -98,17 +37,54 @@ export function DocumentTemplateManagement() {
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [templates, setTemplates] = useState<TemplateDocument[]>(initialTemplates);
+  const [images, setImages] = useState<ImageDocument[]>(initialImages);
+  const [reportFields, setReportFields] = useState<ReportField[]>(initialFields);
+  const [reportTemplateTypes, setReportTemplateTypes] = useState<ReportTemplateType[]>(initialTypes);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
   /** Full builder data store — maps template ID → SavedTemplateData for reconstruction */
   const [templateStore, setTemplateStore] = useState<Record<string, SavedTemplateData>>({});
   /** When editing/duplicating, holds the ID + data to pass to the modal */
   const [editPayload, setEditPayload] = useState<{ id: string; data: SavedTemplateData } | null>(null);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [loadingImages, setLoadingImages] = useState(false);
+  const [loadingFields, setLoadingFields] = useState(false);
+  const [loadingTypes, setLoadingTypes] = useState(false);
 
-  // Shared state — lifted from tabs so data is wired into the Create Template modal
-  const [images, setImages] = useState<ImageDocument[]>(initialImages);
-  const [reportFields, setReportFields] = useState<ReportField[]>(initialFields);
-  const [reportTemplateTypes, setReportTemplateTypes] = useState<ReportTemplateType[]>(initialTypes);
+  // ── Load data from API on mount ─────────────────────────────────────────────
+  useEffect(() => {
+    // Load templates
+    setLoadingTemplates(true);
+    templatesApi.getAll().then((data) => {
+      if (data && data.length > 0) setTemplates(data);
+    }).catch(() => {
+      // Fall back to static initialTemplates
+    }).finally(() => setLoadingTemplates(false));
+
+    // Load images
+    setLoadingImages(true);
+    imagesApi.getAll().then((data) => {
+      if (data && data.length > 0) setImages(data as ImageDocument[]);
+    }).catch(() => {
+      // Fall back to static initialImages
+    }).finally(() => setLoadingImages(false));
+
+    // Load report fields
+    setLoadingFields(true);
+    reportFieldsApi.getAll().then((data) => {
+      if (data && data.length > 0) setReportFields(data.map((f) => ({ ...f })));
+    }).catch(() => {
+      // Fall back to static initialFields
+    }).finally(() => setLoadingFields(false));
+
+    // Load report template types
+    setLoadingTypes(true);
+    reportTemplateTypesApi.getAll().then((data) => {
+      if (data && data.length > 0) setReportTemplateTypes(data.map((t) => ({ ...t })));
+    }).catch(() => {
+      // Fall back to static initialTypes
+    }).finally(() => setLoadingTypes(false));
+  }, []);
 
   const selectedType = reportTemplateTypes.find((t) => t.id === selectedTemplateType);
 
@@ -122,7 +98,14 @@ export function DocumentTemplateManagement() {
     setTemplates((prev) =>
       prev.map((t) => (t.id === id ? { ...t, active: !t.active } : t))
     );
-  }, []);
+    // Persist status change to API (fire-and-forget)
+    const template = templates.find((t) => t.id === id);
+    if (template) {
+      templatesApi.update(id, { ...template, active: !template.active }).catch(() => {
+        // Status toggle failed silently — local state already updated
+      });
+    }
+  }, [templates]);
 
   const handleSaveTemplate = useCallback((data: SavedTemplateData) => {
     const isEditing = editPayload !== null;
@@ -144,27 +127,87 @@ export function DocumentTemplateManagement() {
     };
 
     if (isEditing) {
-      // Update existing template in the list
       setTemplates((prev) => prev.map((t) => (t.id === id ? updatedDoc : t)));
     } else {
-      // Prepend new template
       setTemplates((prev) => [updatedDoc, ...prev]);
     }
 
     // Persist full builder data in the store
     setTemplateStore((prev) => ({ ...prev, [id]: data }));
 
+    // ── Sync to API ───────────────────────────────────────────────────────────
+    const persist = () =>
+      isEditing
+        ? templatesApi.update(id, updatedDoc)
+        : templatesApi.create(updatedDoc);
+
+    persist()
+      .then(() => {
+        toast.success(
+          `Template "${data.templateName}" ${isEditing ? "updated" : "saved"} successfully`,
+          {
+            description: isEditing
+              ? `Template updated with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`
+              : `Added to the Templates list with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`,
+          }
+        );
+      })
+      .catch((err) => {
+        toast.error("Failed to save template to server", {
+          description: err?.message ?? "Please try again.",
+        });
+      });
+
     setIsCreateTemplateModalOpen(false);
     setEditPayload(null);
-    toast.success(
-      `Template "${data.templateName}" ${isEditing ? "updated" : "saved"} successfully`,
-      {
-        description: isEditing
-          ? `Template updated with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`
-          : `Added to the Templates list with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`,
-      }
-    );
   }, [editPayload]);
+
+  // ── Image save handler — sync to API ────────────────────────────────────────
+  const handleSaveImage = useCallback((image: ImageDocument) => {
+    setImages((prev) => {
+      const existing = prev.find((i) => i.id === image.id);
+      if (existing) {
+        // Update existing
+        const updated = prev.map((i) => (i.id === image.id ? image : i));
+        imagesApi.update(image.id, image).catch(() => {});
+        return updated;
+      } else {
+        // Create new
+        imagesApi.create(image).catch(() => {});
+        return [image, ...prev];
+      }
+    });
+  }, []);
+
+  // ── Field save handler — sync to API ────────────────────────────────────────
+  const handleSaveField = useCallback((field: ReportField) => {
+    setReportFields((prev) => {
+      const existing = prev.find((f) => f.id === field.id);
+      if (existing) {
+        const updated = prev.map((f) => (f.id === field.id ? field : f));
+        reportFieldsApi.update(field.id, field).catch(() => {});
+        return updated;
+      } else {
+        reportFieldsApi.create(field).catch(() => {});
+        return [field, ...prev];
+      }
+    });
+  }, []);
+
+  // ── Template type save handler — sync to API ────────────────────────────────
+  const handleSaveType = useCallback((type: ReportTemplateType) => {
+    setReportTemplateTypes((prev) => {
+      const existing = prev.find((t) => t.id === type.id);
+      if (existing) {
+        const updated = prev.map((t) => (t.id === type.id ? type : t));
+        reportTemplateTypesApi.update(type.id, type).catch(() => {});
+        return updated;
+      } else {
+        reportTemplateTypesApi.create(type).catch(() => {});
+        return [type, ...prev];
+      }
+    });
+  }, []);
 
   const handleEditTemplate = useCallback((id: string) => {
     const storedData = templateStore[id];
