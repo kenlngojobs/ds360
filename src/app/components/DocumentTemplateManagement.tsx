@@ -16,31 +16,17 @@ import {
   type ReportTemplateType as ApiReportTemplateType,
 } from "../../services/api";
 
-const initialTemplates: TemplateDocument[] = [
-  {
-    id: "7",
-    name: "SAM Partner Onboarding Checklist",
-    active: false,
-    description: "Checklist for onboarding new SAM partners",
-    approvalRequired: true,
-    readOnly: "No (Editable by partners)",
-    internalUseOnly: "Yes (Internal use only)",
-    templateTypeId: "2",
-  },
-];
-
-const tabs = ["Template", "Images", "Report Fields", "Report Template Types"];
-
 export function DocumentTemplateManagement() {
-  const [activeTab, setActiveTab] = useState("Template");
-  const [selectedTemplateType, setSelectedTemplateType] = useState("all");
-  const [showInactive, setShowInactive] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [templates, setTemplates] = useState<TemplateDocument[]>(initialTemplates);
+  const tabs = ["Template", "Images", "Report Fields", "Report Template Types"];
+  const [activeTab, setActiveTab] = useState<string>("Template");
+  const [templates, setTemplates] = useState<TemplateDocument[]>([]);
   const [images, setImages] = useState<ImageDocument[]>(initialImages);
   const [reportFields, setReportFields] = useState<ReportField[]>(initialFields);
   const [reportTemplateTypes, setReportTemplateTypes] = useState<ReportTemplateType[]>(initialTypes);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [selectedTemplateType, setSelectedTemplateType] = useState<string>("all");
+  const [showInactive, setShowInactive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
   /** Full builder data store — maps template ID → SavedTemplateData for reconstruction */
   const [templateStore, setTemplateStore] = useState<Record<string, SavedTemplateData>>({});

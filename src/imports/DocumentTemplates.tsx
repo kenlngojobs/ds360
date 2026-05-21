@@ -743,7 +743,7 @@ function Dropdown() {
 function Label1() {
   return (
     <div className="content-stretch flex items-center px-[10px] py-[5px] relative shrink-0 w-[420px]" data-name="Label">
-      <p className="flex-[1_0_0] font-['Poppins:Regular',sans-serif] leading-[normal] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px] whitespace-pre-wrap">To be completed by buyers.</p>
+      <p className="flex-[1_0_0] font-['Poppins:Regular',sans-serif] leading-[normal] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px] whitespace-pre-wrap"></p>
     </div>
   );
 }
@@ -945,7 +945,7 @@ function DocumentName() {
   return (
     <div className="content-stretch flex items-center p-[10px] relative shrink-0 w-[250px]" data-name="Document Name">
       <div className="flex flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] not-italic relative shrink-0 text-[#3a3a3a] text-[12px] whitespace-nowrap">
-        <p className="leading-[normal]">Assessment Docs - SAM Due Diligence</p>
+        <p className="leading-[normal]"></p>
       </div>
     </div>
   );
@@ -999,7 +999,7 @@ function DocumentDescription() {
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch flex items-center p-[10px] relative w-full">
           <div className="flex flex-[1_0_0] flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px]">
-            <p className="leading-[normal] whitespace-pre-wrap">Attachments for SAM Due Diligence</p>
+            <p className="leading-[normal] whitespace-pre-wrap"></p>
           </div>
         </div>
       </div>
@@ -1119,7 +1119,7 @@ function DocumentName1() {
   return (
     <div className="content-stretch flex items-center p-[10px] relative shrink-0 w-[250px]" data-name="Document Name">
       <div className="flex flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] not-italic relative shrink-0 text-[#3a3a3a] text-[12px] whitespace-nowrap">
-        <p className="leading-[normal]">Buyer Enrollment Request</p>
+        <p className="leading-[normal]"></p>
       </div>
     </div>
   );
@@ -1173,7 +1173,7 @@ function DocumentDescription1() {
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch flex items-center p-[10px] relative w-full">
           <div className="flex flex-[1_0_0] flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px]">
-            <p className="leading-[normal] whitespace-pre-wrap">Completed for new buyers wishing to join SAM</p>
+            <p className="leading-[normal] whitespace-pre-wrap"></p>
           </div>
         </div>
       </div>
@@ -1293,7 +1293,7 @@ function DocumentName2() {
   return (
     <div className="content-stretch flex items-center p-[10px] relative shrink-0 w-[250px]" data-name="Document Name">
       <div className="flex flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] not-italic relative shrink-0 text-[#3a3a3a] text-[12px] whitespace-nowrap">
-        <p className="leading-[normal]">Buyer Profile Assessment Checklist 2023</p>
+        <p className="leading-[normal]"></p>
       </div>
     </div>
   );
@@ -1347,7 +1347,7 @@ function DocumentDescription2() {
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch flex items-center p-[10px] relative w-full">
           <div className="flex flex-[1_0_0] flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px]">
-            <p className="leading-[normal] whitespace-pre-wrap">Buyer Profile Assessment Checklist 2023e Diligence</p>
+            <p className="leading-[normal] whitespace-pre-wrap"></p>
           </div>
         </div>
       </div>
@@ -1467,7 +1467,7 @@ function DocumentName3() {
   return (
     <div className="content-stretch flex items-center p-[10px] relative shrink-0 w-[250px]" data-name="Document Name">
       <div className="flex flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] not-italic relative shrink-0 text-[#3a3a3a] text-[12px] whitespace-nowrap">
-        <p className="leading-[normal]">Company Assessment - Follow-up</p>
+        <p className="leading-[normal]"></p>
       </div>
     </div>
   );
@@ -1521,7 +1521,7 @@ function DocumentDescription3() {
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch flex items-center p-[10px] relative w-full">
           <div className="flex flex-[1_0_0] flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px]">
-            <p className="leading-[normal] whitespace-pre-wrap">Company Assessment - Follow-up</p>
+            <p className="leading-[normal] whitespace-pre-wrap"></p>
           </div>
         </div>
       </div>
@@ -1641,7 +1641,7 @@ function DocumentName4() {
   return (
     <div className="content-stretch flex items-center p-[10px] relative shrink-0 w-[250px]" data-name="Document Name">
       <div className="flex flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] not-italic relative shrink-0 text-[#3a3a3a] text-[12px] whitespace-nowrap">
-        <p className="leading-[normal]">DEBT BUYER ASSESSMENT SUMMARY</p>
+        <p className="leading-[normal]"></p>
       </div>
     </div>
   );
@@ -1695,7 +1695,7 @@ function DocumentDescription4() {
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch flex items-center p-[10px] relative w-full">
           <div className="flex flex-[1_0_0] flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px]">
-            <p className="leading-[normal] whitespace-pre-wrap">DEBT BUYER ASSESSMENT SUMMARY</p>
+            <p className="leading-[normal] whitespace-pre-wrap"></p>
           </div>
         </div>
       </div>
@@ -1815,7 +1815,7 @@ function DocumentName5() {
   return (
     <div className="content-stretch flex items-center p-[10px] relative shrink-0 w-[250px]" data-name="Document Name">
       <div className="flex flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] not-italic relative shrink-0 text-[#3a3a3a] text-[12px] whitespace-nowrap">
-        <p className="leading-[normal]">Debt Buyer Profile - 2023</p>
+        <p className="leading-[normal]"></p>
       </div>
     </div>
   );
@@ -1869,7 +1869,7 @@ function DocumentDescription5() {
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch flex items-center p-[10px] relative w-full">
           <div className="flex flex-[1_0_0] flex-col font-['Poppins:Regular',sans-serif] justify-center leading-[0] min-h-px min-w-px not-italic relative text-[#3a3a3a] text-[12px]">
-            <p className="leading-[normal] whitespace-pre-wrap">Debt Buyer Profile (Company Overview) - Revised</p>
+            <p className="leading-[normal] whitespace-pre-wrap"></p>
           </div>
         </div>
       </div>
@@ -1992,25 +1992,7 @@ function Frame2() {
         <ColumnHeaders />
       </div>
       <div className="content-stretch flex flex-[1_0_0] flex-col items-start min-h-px min-w-px overflow-x-clip overflow-y-auto relative w-full" data-name="The Lists">
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Row Data - Template Document Lists">
-          <Data />
         </div>
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Row Data - Template Document Lists">
-          <Data1 />
-        </div>
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Row Data - Template Document Lists">
-          <Data2 />
-        </div>
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Row Data - Template Document Lists">
-          <Data3 />
-        </div>
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Row Data - Template Document Lists">
-          <Data4 />
-        </div>
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full" data-name="Row Data - Template Document Lists">
-          <Data5 />
-        </div>
-      </div>
     </div>
   );
 }
