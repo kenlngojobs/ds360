@@ -42,12 +42,15 @@ export function DocumentTemplateManagement() {
     // Load templates
     setLoadingTemplates(true);
     templatesApi.getAll().then(async (data) => {
+      console.log('[HYDRATE] getAll result:', data);
       if (data && data.length > 0) {
         setTemplates(data);
         // Hydrate templateStore from server — fetch full builder data for each template
         for (const tmpl of data) {
+          console.log('[HYDRATE] fetching template:', tmpl.id, tmpl.name);
           try {
             const full = await templatesApi.getOne(tmpl.id);
+            console.log('[HYDRATE] getOne result:', full);
             if (full.configJson && full.elementsJson) {
               const configParsed = JSON.parse(full.configJson ?? '{}');
               const parsed: SavedTemplateData = {
@@ -57,14 +60,20 @@ export function DocumentTemplateManagement() {
                 elements: JSON.parse(full.elementsJson ?? '[]'),
                 canvasConfig: full.typographyJson ? JSON.parse(full.typographyJson) : {},
               };
+              console.log('[HYDRATE] storing in templateStore:', tmpl.id, parsed);
               setTemplateStore((prev) => ({ ...prev, [tmpl.id]: parsed }));
+            } else {
+              console.warn('[HYDRATE] missing builder data for', tmpl.id, { configJson: full.configJson, elementsJson: full.elementsJson });
             }
-          } catch {
-            // Skip — no builder data for this template
+          } catch (err) {
+            console.error('[HYDRATE] getOne failed for', tmpl.id, err);
           }
         }
+      } else {
+        console.log('[HYDRATE] getAll returned empty or no data');
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.error('[HYDRATE] getAll failed:', err);
       // Fall back to static initialTemplates
     }).finally(() => setLoadingTemplates(false));
 

@@ -20,7 +20,9 @@ async function apiFetch<T>(
     ...options.headers,
   };
 
+  console.log(`[API] ${options.method ?? 'GET'} ${url}`);
   const response = await fetch(url, { ...options, headers });
+  console.log(`[API] ${options.method ?? 'GET'} ${endpoint} → HTTP ${response.status}`);
 
   if (!response.ok) {
     let message = `HTTP ${response.status}: ${response.statusText}`;
@@ -37,8 +39,13 @@ async function apiFetch<T>(
 
   // Handle empty responses
   const text = await response.text();
+  console.log(`[API] ${endpoint} raw body:`, text.substring(0, 500));
   if (!text) return {} as T;
-  return JSON.parse(text) as T;
+  const parsed = JSON.parse(text);
+  // Some APIs wrap responses in {result, data} — unwrap if present
+  const result = parsed.data ?? parsed;
+  console.log(`[API] ${endpoint} parsed:`, result);
+  return result as T;
 }
 
 // ─── Templates ──────────────────────────────────────────────────────────────
