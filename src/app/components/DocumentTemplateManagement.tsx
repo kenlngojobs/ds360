@@ -41,8 +41,29 @@ export function DocumentTemplateManagement() {
   useEffect(() => {
     // Load templates
     setLoadingTemplates(true);
-    templatesApi.getAll().then((data) => {
-      if (data && data.length > 0) setTemplates(data);
+    templatesApi.getAll().then(async (data) => {
+      if (data && data.length > 0) {
+        setTemplates(data);
+        // Hydrate templateStore from server — fetch full builder data for each template
+        for (const tmpl of data) {
+          try {
+            const full = await templatesApi.getOne(tmpl.id);
+            if (full.configJson && full.elementsJson) {
+              const configParsed = JSON.parse(full.configJson ?? '{}');
+              const parsed: SavedTemplateData = {
+                templateName: full.name,
+                templateType: full.templateTypeId || configParsed.reportTemplateType || '',
+                config: configParsed,
+                elements: JSON.parse(full.elementsJson ?? '[]'),
+                canvasConfig: full.typographyJson ? JSON.parse(full.typographyJson) : {},
+              };
+              setTemplateStore((prev) => ({ ...prev, [tmpl.id]: parsed }));
+            }
+          } catch {
+            // Skip — no builder data for this template
+          }
+        }
+      }
     }).catch(() => {
       // Fall back to static initialTemplates
     }).finally(() => setLoadingTemplates(false));
@@ -97,6 +118,11 @@ export function DocumentTemplateManagement() {
     const isEditing = editPayload !== null;
     const id = isEditing ? editPayload.id : `tmpl-${Date.now()}`;
 
+    // Serialize builder data for server persistence
+    const configJson = JSON.stringify(data.config ?? {});
+    const elementsJson = JSON.stringify(data.elements ?? []);
+    const typographyJson = data.canvasConfig ? JSON.stringify(data.canvasConfig) : undefined;
+
     const updatedDoc: TemplateDocument = {
       id,
       name: data.templateName,
@@ -110,6 +136,9 @@ export function DocumentTemplateManagement() {
         ? "Yes (Internal use only)"
         : "No (Available to partners)",
       templateTypeId: data.config.reportTemplateType,
+      configJson,
+      elementsJson,
+      typographyJson,
     };
 
     if (isEditing) {

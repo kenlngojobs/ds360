@@ -52,6 +52,10 @@ export interface TemplateDocument {
   readOnly: string;
   internalUseOnly: string;
   templateTypeId: string;
+  /** Server-persisted builder data — only present in GET /api/templates/:id or on save */
+  configJson?: string;
+  elementsJson?: string;
+  typographyJson?: string;
 }
 
 export interface SavedTemplateData {
@@ -67,18 +71,21 @@ export interface SavedTemplateData {
 }
 
 export const templatesApi = {
-  /** GET /api/templates — fetch all templates from DB */
+  /** GET /api/templates — fetch all templates from DB (metadata only) */
   getAll: () => apiFetch<TemplateDocument[]>("/templates"),
 
-  /** POST /api/templates — create a new template */
-  create: (data: TemplateDocument) =>
+  /** GET /api/templates/:id — fetch a single template with full builder data */
+  getOne: (id: string) => apiFetch<TemplateDocument>(`/templates/${id}`),
+
+  /** POST /api/templates — create or upsert a template (with builder data) */
+  create: (data: TemplateDocument & { configJson?: string; elementsJson?: string; typographyJson?: string }) =>
     apiFetch<TemplateDocument>("/templates", {
       method: "POST",
       body: JSON.stringify(data),
     }),
 
-  /** PUT /api/templates/:id — update an existing template */
-  update: (id: string, data: TemplateDocument) =>
+  /** PUT /api/templates/:id — update an existing template (with builder data) */
+  update: (id: string, data: TemplateDocument & { configJson?: string; elementsJson?: string; typographyJson?: string }) =>
     apiFetch<TemplateDocument>(`/templates/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),

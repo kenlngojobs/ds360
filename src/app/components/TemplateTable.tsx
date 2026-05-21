@@ -12,6 +12,10 @@ export interface TemplateDocument {
   internalUseOnly: string;
   /** Links this template to a ReportTemplateType.id */
   templateTypeId: string;
+  /** Server-persisted builder data — only present in GET /api/templates/:id or on save */
+  configJson?: string;
+  elementsJson?: string;
+  typographyJson?: string;
 }
 
 interface TemplateTableProps {
