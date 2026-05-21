@@ -51,7 +51,7 @@ export function DocumentTemplateManagement() {
           try {
             const full = await templatesApi.getOne(tmpl.id);
             console.log('[HYDRATE] getOne result:', full);
-            if (full.configJson && full.elementsJson) {
+            if (full.configJson !== undefined || full.elementsJson !== undefined || full.typographyJson !== undefined) {
               const configParsed = JSON.parse(full.configJson ?? '{}');
               const parsed: SavedTemplateData = {
                 templateName: full.name,
