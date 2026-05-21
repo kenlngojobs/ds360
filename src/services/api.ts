@@ -59,10 +59,52 @@ export interface TemplateDocument {
   readOnly: string;
   internalUseOnly: string;
   templateTypeId: string;
-  /** Server-persisted builder data — only present in GET /api/templates/:id or on save */
+  /** Server-persisted builder data — mapped from snake_case server fields */
   configJson?: string;
   elementsJson?: string;
   typographyJson?: string;
+}
+
+/** Convert server snake_case response to frontend camelCase; null → undefined */
+function normalizeTemplate(doc: Record<string, unknown>): TemplateDocument {
+  const pick = (keys: string[]): string | undefined => {
+    for (const k of keys) {
+      const v = doc[k];
+      if (v !== undefined && v !== null) return String(v);
+    }
+    return undefined;
+  };
+  return {
+    id: String(doc.id ?? ''),
+    name: String(doc.name ?? ''),
+    active: Boolean(doc.active ?? false),
+    description: String(doc.description ?? ''),
+    approvalRequired: Boolean(doc.approvalRequired ?? doc.approval_required ?? false),
+    readOnly: String(doc.readOnly ?? doc.read_only ?? ''),
+    internalUseOnly: String(doc.internalUseOnly ?? doc.internal_use_only ?? ''),
+    templateTypeId: String(doc.templateTypeId ?? doc.template_type_id ?? doc.templateTypeId ?? ''),
+    configJson: pick(['configJson', 'config_json']),
+    elementsJson: pick(['elementsJson', 'elements_json']),
+    typographyJson: pick(['typographyJson', 'typography_json']),
+  };
+}
+
+/** Convert frontend camelCase to server snake_case for POST/PUT */
+function denormalizeTemplate(doc: TemplateDocument): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    id: doc.id,
+    name: doc.name,
+    active: doc.active,
+    description: doc.description,
+    approval_required: doc.approvalRequired,
+    read_only: doc.readOnly,
+    internal_use_only: doc.internalUseOnly,
+    template_type_id: doc.templateTypeId,
+  };
+  if (doc.configJson !== undefined) payload.config_json = doc.configJson;
+  if (doc.elementsJson !== undefined) payload.elements_json = doc.elementsJson;
+  if (doc.typographyJson !== undefined) payload.typography_json = doc.typographyJson;
+  return payload;
 }
 
 export interface SavedTemplateData {
@@ -79,24 +121,36 @@ export interface SavedTemplateData {
 
 export const templatesApi = {
   /** GET /api/templates — fetch all templates from DB (metadata only) */
-  getAll: () => apiFetch<TemplateDocument[]>("/templates"),
+  getAll: async () => {
+    const raw = await apiFetch<Record<string, unknown>[]>("/templates");
+    return raw.map(normalizeTemplate);
+  },
 
   /** GET /api/templates/:id — fetch a single template with full builder data */
-  getOne: (id: string) => apiFetch<TemplateDocument>(`/templates/${id}`),
+  getOne: async (id: string) => {
+    const raw = await apiFetch<Record<string, unknown>>(`/templates/${id}`);
+    return normalizeTemplate(raw);
+  },
 
   /** POST /api/templates — create or upsert a template (with builder data) */
-  create: (data: TemplateDocument & { configJson?: string; elementsJson?: string; typographyJson?: string }) =>
-    apiFetch<TemplateDocument>("/templates", {
+  create: async (data: TemplateDocument) => {
+    const payload = denormalizeTemplate(data);
+    const raw = await apiFetch<Record<string, unknown>>("/templates", {
       method: "POST",
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    });
+    return normalizeTemplate(raw);
+  },
 
   /** PUT /api/templates/:id — update an existing template (with builder data) */
-  update: (id: string, data: TemplateDocument & { configJson?: string; elementsJson?: string; typographyJson?: string }) =>
-    apiFetch<TemplateDocument>(`/templates/${id}`, {
+  update: async (id: string, data: TemplateDocument) => {
+    const payload = denormalizeTemplate(data);
+    const raw = await apiFetch<Record<string, unknown>>(`/templates/${id}`, {
       method: "PUT",
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    });
+    return normalizeTemplate(raw);
+  },
 
   /** DELETE /api/templates/:id — remove a template */
   delete: (id: string) =>
