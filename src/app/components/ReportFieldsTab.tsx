@@ -11,57 +11,7 @@ export interface ReportField {
   description: string;
 }
 
-export const initialFields: ReportField[] = [
-  {
-    id: "1",
-    name: "Address City",
-    fieldType: "Partner Documents",
-    description: "City name",
-  },
-  {
-    id: "2",
-    name: "Address Line 1",
-    fieldType: "Partner Documents",
-    description: "First line of address",
-  },
-  {
-    id: "3",
-    name: "Assessment FollowUp Notes",
-    fieldType: "Offering Documents",
-    description:
-      "Notes regarding SAMs attempts to follow up with Buyer/Seller Assessment Docs",
-  },
-  {
-    id: "4",
-    name: "Company Affiliations",
-    fieldType: "Offering Documents",
-    description: "Company affiliations",
-  },
-  {
-    id: "5",
-    name: "Inventory-Active Accounts",
-    fieldType: "Partner Documents",
-    description: "# of active accounts",
-  },
-  {
-    id: "6",
-    name: "Buyer Contact Email",
-    fieldType: "Partner Documents",
-    description: "Primary email address of the buyer contact",
-  },
-  {
-    id: "7",
-    name: "Compliance Status",
-    fieldType: "Compliance Documents",
-    description: "Current compliance verification status",
-  },
-  {
-    id: "8",
-    name: "Due Diligence Score",
-    fieldType: "Assessment Documents",
-    description: "Calculated due diligence assessment score",
-  },
-];
+export const initialFields: ReportField[] = [];
 
 type SortField = "name" | "fieldType" | "description";
 type SortDirection = "asc" | "desc";

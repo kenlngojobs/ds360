@@ -1,8 +1,6 @@
 import { useState, useMemo } from "react";
 import svgPaths from "../../imports/svg-m2vo2ju2qk";
 import svgPathsImages from "../../imports/svg-rivjalpdli";
-import imgDS360Logo from "figma:asset/d7d08ad4df64de0a114dcc71813a1501ad5e074e.png";
-import imgBuyerProfile from "figma:asset/db4f1f82d7154bbed7465e47fc256d85b72ec78c.png";
 import { useResizableColumns, ResizeHandle, type ColumnDef } from "./useResizableColumns";
 import { AddImageModal } from "./AddImageModal";
 
@@ -15,30 +13,7 @@ export interface ImageDocument {
   previewAspect?: string;
 }
 
-export const initialImages: ImageDocument[] = [
-  {
-    id: "1",
-    name: "DS360 Logo with TM 1",
-    active: true,
-    previewType: "image",
-    previewSrc: imgDS360Logo,
-    previewAspect: "aspect-square",
-  },
-  {
-    id: "2",
-    name: "Buyer Profile Assessment Checklist",
-    active: true,
-    previewType: "image",
-    previewSrc: imgBuyerProfile,
-    previewAspect: "aspect-[566/91]",
-  },
-  {
-    id: "3",
-    name: "Document Folder Icon",
-    active: true,
-    previewType: "svg",
-  },
-];
+export const initialImages: ImageDocument[] = [];
 
 type SortField = "name" | "status" | "preview";
 type SortDirection = "asc" | "desc";

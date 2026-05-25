@@ -10,43 +10,7 @@ export interface ReportTemplateType {
   description: string;
 }
 
-export const initialTypes: ReportTemplateType[] = [
-  {
-    id: "1",
-    name: "Certificate of Destruction",
-    description: "Certificate of Destruction",
-  },
-  {
-    id: "2",
-    name: "NDA",
-    description: "Non-disclosure agreement",
-  },
-  {
-    id: "3",
-    name: "Buyer Assessment",
-    description: "Assessment report for prospective debt buyers",
-  },
-  {
-    id: "4",
-    name: "Seller Due Diligence",
-    description: "Due diligence documentation for debt sellers",
-  },
-  {
-    id: "5",
-    name: "Compliance Audit",
-    description: "Internal compliance audit report template",
-  },
-  {
-    id: "6",
-    name: "Portfolio Summary",
-    description: "Summary of debt portfolio details and metrics",
-  },
-  {
-    id: "7",
-    name: "Transfer Agreement",
-    description: "Debt portfolio transfer and assignment agreement",
-  },
-];
+export const initialTypes: ReportTemplateType[] = [];
 
 type SortField = "name" | "description";
 type SortDirection = "asc" | "desc";

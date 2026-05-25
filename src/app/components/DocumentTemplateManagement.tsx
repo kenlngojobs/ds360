@@ -2,9 +2,9 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import svgPaths from "../../imports/svg-m2vo2ju2qk";
 import { TemplateTable, type TemplateDocument } from "./TemplateTable";
-import { ImagesTab, initialImages, type ImageDocument } from "./ImagesTab";
-import { ReportFieldsTab, initialFields, type ReportField } from "./ReportFieldsTab";
-import { ReportTemplateTypesTab, initialTypes, type ReportTemplateType } from "./ReportTemplateTypesTab";
+import { ImagesTab, type ImageDocument } from "./ImagesTab";
+import { ReportFieldsTab, type ReportField } from "./ReportFieldsTab";
+import { ReportTemplateTypesTab, type ReportTemplateType } from "./ReportTemplateTypesTab";
 import { CreateTemplateModal, type SavedTemplateData } from "./CreateTemplateModal";
 import {
   templatesApi,
@@ -20,9 +20,9 @@ export function DocumentTemplateManagement() {
   const tabs = ["Template", "Images", "Report Fields", "Report Template Types"];
   const [activeTab, setActiveTab] = useState<string>("Template");
   const [templates, setTemplates] = useState<TemplateDocument[]>([]);
-  const [images, setImages] = useState<ImageDocument[]>(initialImages);
-  const [reportFields, setReportFields] = useState<ReportField[]>(initialFields);
-  const [reportTemplateTypes, setReportTemplateTypes] = useState<ReportTemplateType[]>(initialTypes);
+  const [images, setImages] = useState<ImageDocument[]>([]);
+  const [reportFields, setReportFields] = useState<ReportField[]>([]);
+  const [reportTemplateTypes, setReportTemplateTypes] = useState<ReportTemplateType[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedTemplateType, setSelectedTemplateType] = useState<string>("all");
   const [showInactive, setShowInactive] = useState(false);
