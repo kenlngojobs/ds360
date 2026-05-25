@@ -1060,11 +1060,7 @@ export function CreateTemplateModal({ open, onClose, images, reportTemplateTypes
         setTemplateType(editData.data.templateType);
         setConfig({ ...editData.data.config });
         setElements(editData.data.elements.map((el) => ({ ...el })));
-        // Guard: if canvasConfig is missing critical fields (e.g. from legacy DB
-        // data stored before the field existed), fall back to default.
-        const incoming = editData.data.canvasConfig;
-        const isValid = incoming && typeof incoming === "object" && "pageSizeWidth" in incoming && "pageSizeHeight" in incoming;
-        setCanvasConfig(isValid ? { ...incoming } : { ...defaultCanvasConfig });
+        setCanvasConfig({ ...defaultCanvasConfig, ...editData.data.canvasConfig });
       } else {
         // Create mode — blank defaults
         setTemplateName("");

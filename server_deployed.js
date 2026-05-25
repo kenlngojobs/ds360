@@ -1,5 +1,5 @@
-/**
- * DS360 API Server — MySQL backend
+﻿/**
+ * DS360 API Server ΓÇö MySQL backend
  * Compatible with Node 10+ (uses mysql package, no optional chaining)
  * Port: process.env.PORT || 3002
  */
@@ -29,7 +29,7 @@ if (fs.existsSync(envPhpPath)) {
   if (!DB_HOST) DB_HOST = extract('DB_HOST');
 }
 
-// ── Connection pool ───────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Connection pool ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const pool = mysql.createPool({
   host:            DB_HOST,
   database:        DB_NAME,
@@ -47,7 +47,7 @@ function query(sql, params) {
   });
 }
 
-// ── Schema init ───────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Schema init ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 async function initSchema() {
   await query(`CREATE TABLE IF NOT EXISTS ds360_templates (
     id VARCHAR(64) PRIMARY KEY,
@@ -89,7 +89,7 @@ async function initSchema() {
   console.log('[DB] Schema ready');
 }
 
-// ── HTTP helpers ──────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ HTTP helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
@@ -108,7 +108,7 @@ function parseBody(req) {
   });
 }
 
-// ── Server ────────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Server ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 var server = http.createServer(async function(req, res) {
   var method = req.method;
   var url    = new URL(req.url, 'http://localhost:' + PORT);
@@ -122,7 +122,7 @@ var server = http.createServer(async function(req, res) {
     if (method === 'GET' && p === '/api/health')
       return send(res, 200, { status: 'ok', time: new Date().toISOString() });
 
-    // ── Templates ─────────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Templates ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (method === 'GET' && p === '/api/templates') {
       var rows = await query('SELECT id,name,active,description,approval_required,read_only,internal_use_only,template_type_id FROM ds360_templates ORDER BY created_at DESC');
       return send(res, 200, rows.map(function(r) { return {
@@ -168,7 +168,7 @@ var server = http.createServer(async function(req, res) {
       return send(res, 200, { success: true });
     }
 
-    // ── Images ────────────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Images ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (method === 'GET' && p === '/api/images') {
       var imgs = await query('SELECT * FROM ds360_images ORDER BY id');
       return send(res, 200, imgs.map(function(r) { return {
@@ -190,7 +190,7 @@ var server = http.createServer(async function(req, res) {
       return send(res, 200, { success: true, count: imgs.length });
     }
 
-    // ── Report Fields ─────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Report Fields ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (method === 'GET' && p === '/api/report-fields') {
       var fields = await query('SELECT * FROM ds360_report_fields ORDER BY id');
       return send(res, 200, fields.map(function(r) { return { id: r.id, name: r.name, fieldType: r.field_type, description: r.description }; }));
@@ -209,7 +209,7 @@ var server = http.createServer(async function(req, res) {
       return send(res, 200, { success: true, count: fields.length });
     }
 
-    // ── Template Types ────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Template Types ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     if (method === 'GET' && p === '/api/template-types') {
       var types = await query('SELECT * FROM ds360_template_types ORDER BY id');
       return send(res, 200, types.map(function(r) { return { id: r.id, name: r.name, description: r.description }; }));
@@ -228,7 +228,7 @@ var server = http.createServer(async function(req, res) {
       return send(res, 200, { success: true, count: types.length });
     }
 
-    // ── Users ─────────────────────────────────────────────────────────────────
+    // ΓöÇΓöÇ Users ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
     // Status mapping: DB stores lowercase, UI uses Title Case
     function dbToUiStatus(s) {
       if (s === 'active')    return 'Active';
@@ -282,6 +282,105 @@ var server = http.createServer(async function(req, res) {
     if (method === 'DELETE' && userId) {
       await query('DELETE FROM users WHERE id=?', [userId[1]]);
       return send(res, 200, { success: true });
+    }
+
+    // ── Template Migration ────────────────────────────────────────────────────
+    const CANVAS_CONFIG_DEFAULTS = {
+      marginTop: 24, marginRight: 24, marginBottom: 24, marginLeft: 24,
+      paddingTop: 0, paddingRight: 0, paddingBottom: 0, paddingLeft: 0,
+      contentWidth: "full", contentMaxWidth: 720, contentAlignment: "left",
+      elementGap: 0, bgColor: "#ffffff",
+      borderStyle: "none", borderWidth: 1, borderColor: "#000000",
+      spacingUnit: "px",
+      globalTypography: {
+        templateTitle:    { fontFamily: "Montserrat", fontSize: 22, fontWeight: 700, color: "#46367F", textAlign: "left" },
+        templateDescription: { fontFamily: "Poppins", fontSize: 13, fontWeight: 400, color: "#3A3A3A", textAlign: "left" },
+        h1: { fontFamily: "Montserrat", fontSize: 28, fontWeight: 700, color: "#2D2D2D", textAlign: "left" },
+        h2: { fontFamily: "Montserrat", fontSize: 22, fontWeight: 700, color: "#2D2D2D", textAlign: "left" },
+        h3: { fontFamily: "Montserrat", fontSize: 18, fontWeight: 700, color: "#2D2D2D", textAlign: "left" },
+        h4: { fontFamily: "Montserrat", fontSize: 15, fontWeight: 700, color: "#2D2D2D", textAlign: "left" },
+        h5: { fontFamily: "Montserrat", fontSize: 13, fontWeight: 700, color: "#2D2D2D", textAlign: "left" },
+        h6: { fontFamily: "Montserrat", fontSize: 11, fontWeight: 700, color: "#2D2D2D", textAlign: "left" },
+        paragraph: { fontFamily: "Poppins", fontSize: 13, fontWeight: 400, color: "#6B6B6B", textAlign: "left" },
+      },
+      pageSizePreset: "letter", pageSizeWidth: 816, pageSizeHeight: 1056, pageOrientation: "portrait",
+    };
+
+    function needsMigration(configJson) {
+      if (!configJson) return true;
+      try {
+        const cfg = JSON.parse(configJson);
+        return Object.keys(CANVAS_CONFIG_DEFAULTS).some(k => cfg[k] === undefined);
+      } catch { return true; }
+    }
+
+    function fixPageBreakConfig(elementsJson) {
+      if (!elementsJson) return null;
+      try {
+        const els = JSON.parse(elementsJson);
+        let changed = false;
+        const fixed = els.map(el => {
+          if (el.type === "page-break" && Array.isArray(el.config)) {
+            changed = true;
+            return { ...el, config: {} };
+          }
+          return el;
+        });
+        return changed ? JSON.stringify(fixed) : null;
+      } catch { return null; }
+    }
+
+    if (method === 'GET' && p === '/api/templates/migrate/status') {
+      const rows = await query("SELECT id, name, config_json, elements_json FROM ds360_templates ORDER BY created_at DESC");
+      const status = rows.map(r => {
+        const hasImportedPage = r.elements_json && r.elements_json.includes('"type":"imported-page"');
+        return {
+          id: r.id, name: r.name,
+          needsConfig: needsMigration(r.config_json),
+          hasPageBreakIssue: r.elements_json && r.elements_json.includes('"type":"page-break"'),
+          hasImportedPage,
+          skipped: hasImportedPage,
+        };
+      });
+      return send(res, 200, { templates: status, total: rows.length });
+    }
+
+    if (method === 'POST' && p === '/api/templates/migrate') {
+      const rows = await query("SELECT id, name, config_json, elements_json FROM ds360_templates ORDER BY created_at DESC");
+      let patched = 0, skipped = 0, errors = 0;
+
+      for (const row of rows) {
+        try {
+          const hasImportedPage = row.elements_json && row.elements_json.includes('"type":"imported-page"');
+          if (hasImportedPage) { skipped++; continue; }
+
+          let configJson = row.config_json;
+          let elementsJson = row.elements_json;
+
+          const needsConfig = needsMigration(configJson);
+          const fixedElements = fixPageBreakConfig(elementsJson);
+
+          if (!needsConfig && !fixedElements) { skipped++; continue; }
+
+          if (needsConfig) {
+            const existing = configJson ? JSON.parse(configJson) : {};
+            const merged = Object.assign({}, CANVAS_CONFIG_DEFAULTS, existing);
+            configJson = JSON.stringify(merged);
+          }
+          if (fixedElements) elementsJson = fixedElements;
+
+          await query(
+            "UPDATE ds360_templates SET config_json=?, elements_json=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            [configJson, elementsJson, row.id]
+          );
+          patched++;
+          console.log('[MIGRATE] Patched: ' + row.name + ' (' + row.id + ')');
+        } catch (e) {
+          errors++;
+          console.error('[MIGRATE] Error on ' + row.id + ': ' + e.message);
+        }
+      }
+      return send(res, 200, { success: true, patched, skipped, errors });
     }
 
     send(res, 404, { error: 'Not found' });

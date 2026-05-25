@@ -44,6 +44,7 @@ const DocumentContext = React.createContext<{ templateName: string; templateDesc
 // DropIndicatorLine to hide editing chrome when preview is active
 // =====================================================================
 const PreviewModeContext = React.createContext(false);
+const ImagesContext = React.createContext<ImageDocument[]>([]);
 
 // =====================================================================
 // Types
@@ -659,9 +660,9 @@ function createSingleInnerContainer(
       gap: 0,
       gapColumn: 0,
       gapRow: 0,
-      gapsLinked: true as unknown as boolean,
+      gapsLinked: true,
       title: "",
-      showTitle: false as unknown as boolean,
+      showTitle: false,
       contentWidth: "full",
       contentMaxWidth: 800,
       contentAlignment: "center",
@@ -673,7 +674,7 @@ function createSingleInnerContainer(
       opacity: 100,
       shadow: "none",
       alignment: "left",
-      overflow: "hidden",
+      overflow: "visible",
       zIndex: "",
       paddingTop: 0,
       paddingRight: 0,
@@ -943,7 +944,7 @@ function buildCategories(
     type: "text-box",
     label: "Text Box",
     icon: <TextBoxIcon />,
-    defaultConfig: { label: "Text Field", placeholder: "Enter value..." },
+    defaultConfig: { label: "Text Field", placeholder: "Enter value...", required: false },
   };
   const textAreaWidget: PaletteWidget = {
     type: "text-area",
@@ -955,13 +956,13 @@ function buildCategories(
     type: "number-input",
     label: "Number Input",
     icon: <NumberInputIcon />,
-    defaultConfig: { label: "Amount", placeholder: "0", min: 0, max: 9999, step: 1 },
+    defaultConfig: { label: "Amount", placeholder: "0", min: 0, max: 9999, step: 1, required: false },
   };
   const attachmentWidget: PaletteWidget = {
     type: "attachment",
     label: "Attachment",
     icon: <AttachmentIcon />,
-    defaultConfig: { label: "Upload File", accept: "*" },
+    defaultConfig: { label: "Upload File", accept: "*", required: false },
   };
   const buttonWidget: PaletteWidget = {
     type: "button",
@@ -979,19 +980,19 @@ function buildCategories(
     type: "radio-button",
     label: "Radio Button",
     icon: <RadioButtonIcon />,
-    defaultConfig: { label: "Option", options: "Option 1,Option 2,Option 3" as unknown as string },
+    defaultConfig: { label: "Option", options: "Option 1,Option 2,Option 3" as unknown as string, required: false },
   };
   const dropdownWidget: PaletteWidget = {
     type: "dropdown",
     label: "Dropdown",
     icon: <DropdownIcon />,
-    defaultConfig: { label: "Select", options: "Option 1,Option 2,Option 3" as unknown as string },
+    defaultConfig: { label: "Select", options: "Option 1,Option 2,Option 3" as unknown as string, required: false },
   };
   const calendarWidget: PaletteWidget = {
     type: "calendar",
     label: "Calendar",
     icon: <CalendarIcon />,
-    defaultConfig: { label: "Date" },
+    defaultConfig: { label: "Date", required: false },
   };
   const toggleWidget: PaletteWidget = {
     type: "toggle",
@@ -1012,7 +1013,7 @@ function buildCategories(
     label: "Container",
     icon: <ContainerIcon />,
     defaultConfig: {
-      structurePicked: false as unknown as boolean,
+      structurePicked: false,
       layout: "1col",
       rows: "[[1]]",
       direction: "vertical",
@@ -1023,9 +1024,9 @@ function buildCategories(
       gap: 0,
       gapColumn: 0,
       gapRow: 0,
-      gapsLinked: true as unknown as boolean,
+      gapsLinked: true,
       title: "",
-      showTitle: false as unknown as boolean,
+      showTitle: false,
       contentWidth: "full",
       contentMaxWidth: 800,
       contentAlignment: "center",
@@ -1037,7 +1038,7 @@ function buildCategories(
       opacity: 100,
       shadow: "none",
       alignment: "left",
-      overflow: "hidden",
+      overflow: "visible",
       zIndex: "",
       // Zero spacing by default — matches Elementor behavior
       paddingTop: 0,
@@ -1092,7 +1093,7 @@ function buildCategories(
     type: "partner-tags",
     label: "Partner Tags",
     icon: <PartnerTagsIcon />,
-    defaultConfig: { source: "all" },
+    defaultConfig: { source: "all", customTags: "" },
   };
 
   // ── Report Fields (from Report Fields tab) ──
@@ -1432,21 +1433,27 @@ function SignatureWidget({ c, sigCSS }: { c: Record<string, string | number | bo
     return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
   };
 
-  const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    e.stopPropagation();
+  const getTouchPos = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return null;
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const scaleX = canvasRef.current!.width / rect.width;
+    const scaleY = canvasRef.current!.height / rect.height;
+    return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+  };
+
+  const startDraw = (x: number, y: number) => {
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
     drawing.current = true;
-    const { x, y } = getPos(e);
     ctx.beginPath();
     ctx.moveTo(x, y);
   };
 
-  const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const continueDraw = (x: number, y: number) => {
     if (!drawing.current) return;
     const ctx = canvasRef.current?.getContext("2d");
     if (!ctx) return;
-    const { x, y } = getPos(e);
     ctx.lineTo(x, y);
     ctx.strokeStyle = "#46367F";
     ctx.lineWidth = 2;
@@ -1455,9 +1462,43 @@ function SignatureWidget({ c, sigCSS }: { c: Record<string, string | number | bo
     setHasDrawing(true);
   };
 
+  const stopDraw = () => {
+    drawing.current = false;
+  };
+
+  const onMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.stopPropagation();
+    const { x, y } = getPos(e);
+    startDraw(x, y);
+  };
+
+  const onMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const { x, y } = getPos(e);
+    continueDraw(x, y);
+  };
+
   const onMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.stopPropagation();
-    drawing.current = false;
+    stopDraw();
+  };
+
+  const onTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const pos = getTouchPos(e);
+    if (pos) startDraw(pos.x, pos.y);
+  };
+
+  const onTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const pos = getTouchPos(e);
+    if (pos) continueDraw(pos.x, pos.y);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.stopPropagation();
+    stopDraw();
   };
 
   const onClear = (e: React.MouseEvent) => {
@@ -1484,6 +1525,9 @@ function SignatureWidget({ c, sigCSS }: { c: Record<string, string | number | bo
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={onMouseUp}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         />
       </div>
       <div className="flex items-center justify-between">
@@ -1504,9 +1548,18 @@ function SignatureWidget({ c, sigCSS }: { c: Record<string, string | number | bo
   );
 }
 
+/**
+ * RepeaterWidget — MVP visual placeholder.
+ * Renders a list of placeholder items with add/remove buttons.
+ * NOTE: This is NOT a true repeater that nests child widgets.
+ * Real nested child widget support is planned for Phase 2.
+ * minItems/maxItems are enforced on the item count.
+ */
 function RepeaterWidget({ c, repCSS }: { c: Record<string, string | number | boolean>; repCSS: React.CSSProperties }) {
   const itemLabel = String(c.itemLabel || "Item");
-  const [count, setCount] = React.useState(1);
+  const minItems = Math.max(1, Number(c.minItems || 1));
+  const maxItems = Math.max(minItems, Number(c.maxItems || 10));
+  const [count, setCount] = React.useState(minItems);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -1526,10 +1579,10 @@ function RepeaterWidget({ c, repCSS }: { c: Record<string, string | number | boo
             </svg>
           </div>
           <span style={{ ...repCSS, fontSize: "12px" }} className="flex-1">{itemLabel} {idx + 1}</span>
-          {count > 1 && (
+          {count > minItems && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); setCount((n) => n - 1); }}
+              onClick={(e) => { e.stopPropagation(); setCount((n) => Math.max(minItems, n - 1)); }}
               className="text-ds-light-gray hover:text-red-400 transition-colors text-[16px] leading-none ml-auto"
             >
               ×
@@ -1537,16 +1590,18 @@ function RepeaterWidget({ c, repCSS }: { c: Record<string, string | number | boo
           )}
         </div>
       ))}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); setCount((n) => n + 1); }}
-        className="flex items-center gap-1.5 border border-dashed border-ds-purple/30 rounded-md px-3 py-1.5 text-ds-purple/60 hover:border-ds-purple/60 hover:text-ds-purple transition-colors cursor-pointer"
-      >
-        <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
-          <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-        <span style={{ fontFamily: repCSS.fontFamily, fontSize: "11px" }}>Add {itemLabel}</span>
-      </button>
+      {count < maxItems && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setCount((n) => Math.min(maxItems, n + 1)); }}
+          className="flex items-center gap-1.5 border border-dashed border-ds-purple/30 rounded-md px-3 py-1.5 text-ds-purple/60 hover:border-ds-purple/60 hover:text-ds-purple transition-colors cursor-pointer"
+        >
+          <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
+            <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span style={{ fontFamily: repCSS.fontFamily, fontSize: "11px" }}>Add {itemLabel}</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -1593,6 +1648,7 @@ function CanvasItem({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const previewMode = React.useContext(PreviewModeContext);
+  const imagesList = React.useContext(ImagesContext);
 
   // Use different drag types for root vs nested to prevent cross-level reorder
   const dragType = isNested ? ITEM_TYPE_CANVAS_NESTED : ITEM_TYPE_CANVAS;
@@ -1700,9 +1756,10 @@ function CanvasItem({
         const ts = resolveTextStyle(gs, c);
         loadGoogleFont(ts.fontFamily);
         const cssStyle = textStyleToCSS(ts);
+        const headerTag = String(c.tag || "H2").toLowerCase() as "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "div" | "p" | "span";
         return (
           <AutoFitText
-            as="div"
+            as={headerTag}
             text={String(c.text || "Section Header")}
             baseFontSize={ts.fontSize}
             fontFamily={fontFamilyCSS(ts.fontFamily)}
@@ -1745,6 +1802,7 @@ function CanvasItem({
           <div className="flex flex-col gap-1.5">
             <label style={{ ..._tbLabelCSS, fontWeight: _tbTs.fontWeight || 600 }}>
               {String(c.label || "Text Field")}
+              {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             {previewMode ? (
               <input
@@ -1764,7 +1822,20 @@ function CanvasItem({
       }
 
       /* ── Image ── */
-      case "image":
+      case "image": {
+        const imgId = String(c.imageId || "");
+        const imgDoc = imgId ? imagesList.find((im: ImageDocument) => im.id === imgId) : null;
+        if (imgDoc && imgDoc.previewSrc) {
+          return (
+            <div className="flex flex-col items-center justify-center gap-1 rounded-lg overflow-hidden" style={{ maxHeight: 200 }}>
+              <img
+                src={imgDoc.previewSrc}
+                alt={String(c.imageName || imgDoc.name || "Image")}
+                className="max-w-full max-h-[200px] object-contain rounded"
+              />
+            </div>
+          );
+        }
         return (
           <div className="flex flex-col items-center justify-center gap-2.5 bg-gray-50 border-2 border-dashed border-ds-haze rounded-lg py-8">
             <div className="w-10 h-10 text-ds-light-gray">{icon}</div>
@@ -1775,6 +1846,7 @@ function CanvasItem({
             </span>
           </div>
         );
+      }
 
       /* ── Attachment ── */
       case "attachment": {
@@ -1800,6 +1872,7 @@ function CanvasItem({
               <div className="flex flex-col items-center gap-0.5">
                 <span style={{ ..._attCSS, fontSize: `${Math.min(_attTs.fontSize, 12)}px`, fontWeight: _attTs.fontWeight || 500 }}>
                   {String(c.label || "Upload File")}
+                  {c.required && <span className="text-red-500 ml-1">*</span>}
                 </span>
                 <span style={{ ..._attCSS, fontSize: "10px", color: "#b0b0b0" }}>
                   Click or drag a file to upload
@@ -1846,8 +1919,8 @@ function CanvasItem({
 
       /* ── Radio Button ── */
       case "radio-button": {
-        const opts = String(c.options || "Option 1,Option 2,Option 3")
-          .split(",")
+        const optsRaw = String(c.options || "Option 1,Option 2,Option 3");
+        const opts = (optsRaw.includes("|") ? optsRaw.split("|") : optsRaw.split(","))
           .map((s) => s.trim())
           .filter(Boolean);
         const { defaults: _rbGs } = getEffectiveTypography("radio-button", c, globalTypo);
@@ -1862,6 +1935,7 @@ function CanvasItem({
             {c.label && (
               <span style={{ ..._rbCSS, fontWeight: _rbTs.fontWeight || 600 }}>
                 {String(c.label)}
+                {c.required && <span className="text-red-500 ml-1">*</span>}
               </span>
             )}
             {opts.map((opt, i) => (
@@ -1878,8 +1952,8 @@ function CanvasItem({
 
       /* ── Dropdown ── */
       case "dropdown": {
-        const opts = String(c.options || "Option 1,Option 2,Option 3")
-          .split(",")
+        const optsRaw = String(c.options || "Option 1,Option 2,Option 3");
+        const opts = (optsRaw.includes("|") ? optsRaw.split("|") : optsRaw.split(","))
           .map((s) => s.trim())
           .filter(Boolean);
         const { defaults: _ddGs } = getEffectiveTypography("dropdown", c, globalTypo);
@@ -1891,6 +1965,7 @@ function CanvasItem({
             {c.label && (
               <label style={{ ..._ddCSS, fontWeight: _ddTs.fontWeight || 600 }}>
                 {String(c.label)}
+                {c.required && <span className="text-red-500 ml-1">*</span>}
               </label>
             )}
             {previewMode ? (
@@ -1927,6 +2002,7 @@ function CanvasItem({
           <div className="flex flex-col gap-1.5">
             <label style={{ ..._calCSS, fontWeight: _calTs.fontWeight || 600 }}>
               {String(c.label || "Date")}
+              {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             {previewMode ? (
               <input
@@ -1949,8 +2025,10 @@ function CanvasItem({
 
       /* ── Container (unified: nestable columns/subgroup/vertical/horizontal) ── */
       case "container": {
+        // typeof guard: handle both boolean and string values from deserialization
+        const structurePicked = typeof c.structurePicked === 'boolean' ? c.structurePicked : c.structurePicked === 'true';
         // Not yet configured — show the structure picker overlay (hidden in preview)
-        if (!c.structurePicked) {
+        if (!structurePicked) {
           if (previewMode) return null;
           return (
             <StructurePickerInline
@@ -1978,7 +2056,7 @@ function CanvasItem({
         try { parsedRows = JSON.parse(String(c.rows || "[[1]]")); } catch { /* fallback */ }
         const cGapCol = Number(c.gapColumn ?? c.gap ?? 12);
         const cGapRow = Number(c.gapRow ?? c.gap ?? 12);
-        const showTitle = !!c.showTitle;
+        const showTitle = typeof c.showTitle === 'boolean' ? !!c.showTitle : c.showTitle === 'true';
         const titleText = String(c.title || "Section Title");
         const currentPreset = CONTAINER_PRESETS.find((p) => p.id === String(c.layout))
           || makeEqualColumnsPreset(parsedRows[0]?.length ?? 1);
@@ -2132,7 +2210,15 @@ function CanvasItem({
       case "partner-tags": {
         const allTags = ["Debt Portfolio", "Active", "Premium", "Priority", "Verified", "High Risk"];
         const src = String(c.source || "all");
-        const tags = src === "active" ? allTags.slice(0, 3) : allTags;
+        let tags: string[];
+        if (src === "active") {
+          tags = allTags.slice(0, 3);
+        } else if (src === "custom") {
+          const customStr = String(c.customTags || "");
+          tags = customStr ? customStr.split(",").map((t: string) => t.trim()).filter(Boolean) : [];
+        } else {
+          tags = allTags;
+        }
         const { defaults: _ptGs } = getEffectiveTypography("partner-tags", c, globalTypo);
         const _ptTs = resolveTextStyle(_ptGs, c);
         loadGoogleFont(_ptTs.fontFamily);
@@ -2227,6 +2313,7 @@ function CanvasItem({
           <div className="flex flex-col gap-1.5">
             <label style={{ ..._niCSS, fontWeight: _niTs.fontWeight || 600 }}>
               {String(c.label || "Amount")}
+              {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             {previewMode ? (
               <input
@@ -2234,6 +2321,7 @@ function CanvasItem({
                 placeholder={String(c.placeholder || "0")}
                 min={c.min !== undefined ? Number(c.min) : undefined}
                 max={c.max !== undefined ? Number(c.max) : undefined}
+                step={c.step !== undefined ? Number(c.step) : undefined}
                 className="border border-ds-haze rounded-md px-3 py-2 bg-white outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors"
                 style={{ fontFamily: _niCSS.fontFamily, fontSize: `${Math.min(_niTs.fontSize, 12)}px` }}
                 onClick={(e) => e.stopPropagation()}
@@ -2610,10 +2698,10 @@ function CanvasItem({
       {/* ── Elementor-style toolbar bar — visible when selected, hidden in preview (C3/I3) ── */}
       {!previewMode && (
       <div
-        className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-2.5 py-1.5 transition-all ${
+        className={`relative z-10 flex items-center justify-between px-2.5 py-1.5 transition-all ${
           isSelected
             ? isNested ? "bg-ds-teal opacity-100" : "bg-ds-purple opacity-100"
-            : "bg-[#f0eef8] opacity-0 pointer-events-none"
+            : "bg-[#f0eef8] h-0 overflow-hidden opacity-0 pointer-events-none py-0 px-0"
         }`}
       >
         <div className={`flex items-center gap-2 ${isSelected ? "pointer-events-auto" : "pointer-events-none"}`}>
@@ -5077,7 +5165,7 @@ function ContainerLayoutPanel({
   const flexWrap = String(config.flexWrap || "nowrap");
   const gapColumn = Number(config.gapColumn ?? config.gap ?? 12);
   const gapRow = Number(config.gapRow ?? config.gap ?? 12);
-  const gapsLinked = config.gapsLinked !== false;
+  const gapsLinked = typeof config.gapsLinked === 'boolean' ? config.gapsLinked : String(config.gapsLinked) !== 'false';
   const containerWidth = Number(config.containerWidth ?? 100);
   const containerWidthUnit = String(config.containerWidthUnit || "%");
   const containerMinHeight = Number(config.containerMinHeight ?? 0);
@@ -5842,6 +5930,7 @@ function PropertiesView({
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
           <PropInput label="Placeholder" value={String(config.placeholder || "")} onChange={(v) => updateField("placeholder", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
         </div>
       )}
 
@@ -5864,7 +5953,10 @@ function PropertiesView({
 
       {/* ── Attachment ── */}
       {selectedElement.type === "attachment" && (
-        <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+        <div className="contents">
+          <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+        </div>
       )}
 
 
@@ -5881,7 +5973,8 @@ function PropertiesView({
       {selectedElement.type === "radio-button" && (
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
-          <PropInput label="Options (comma-separated)" value={String(config.options || "")} onChange={(v) => updateField("options", v)} />
+          <PropInput label="Options (comma or | separated)" value={String(config.options || "")} onChange={(v) => updateField("options", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
         </div>
       )}
 
@@ -5889,13 +5982,17 @@ function PropertiesView({
       {selectedElement.type === "dropdown" && (
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
-          <PropInput label="Options (comma-separated)" value={String(config.options || "")} onChange={(v) => updateField("options", v)} />
+          <PropInput label="Options (comma or | separated)" value={String(config.options || "")} onChange={(v) => updateField("options", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
         </div>
       )}
 
       {/* ── Calendar ── */}
       {selectedElement.type === "calendar" && (
-        <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+        <div className="contents">
+          <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+        </div>
       )}
 
       {/* ── Container (unified) ── */}
@@ -5933,16 +6030,21 @@ function PropertiesView({
 
       {/* ── Partner Tags ── */}
       {selectedElement.type === "partner-tags" && (
-        <PropSelect
-          label="Source"
-          value={String(config.source || "all")}
-          onChange={(v) => updateField("source", v)}
-          options={[
-            { value: "all", label: "All Tags" },
-            { value: "active", label: "Active Only" },
-            { value: "custom", label: "Custom Selection" },
-          ]}
-        />
+        <div className="contents">
+          <PropSelect
+            label="Source"
+            value={String(config.source || "all")}
+            onChange={(v) => updateField("source", v)}
+            options={[
+              { value: "all", label: "All Tags" },
+              { value: "active", label: "Active Only" },
+              { value: "custom", label: "Custom Selection" },
+            ]}
+          />
+          {String(config.source || "all") === "custom" && (
+            <PropInput label="Custom Tags (comma-separated)" value={String(config.customTags || "")} onChange={(v) => updateField("customTags", v)} />
+          )}
+        </div>
       )}
 
       {/* ── Report Field ── */}
@@ -6728,6 +6830,7 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
     <DocumentContext.Provider value={docContextValue}>
     <GlobalTypographyContext.Provider value={globalTypo}>
     <PreviewModeContext.Provider value={previewMode}>
+    <ImagesContext.Provider value={images}>
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col h-full overflow-hidden">
         {/* Toolbar removed — controls now rendered in parent modal header */}
@@ -6833,6 +6936,7 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
         </div>
       </div>
     </DndProvider>
+    </ImagesContext.Provider>
     </PreviewModeContext.Provider>
     </GlobalTypographyContext.Provider>
     </DocumentContext.Provider>
