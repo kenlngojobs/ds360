@@ -21,7 +21,16 @@ async function apiFetch<T>(
   };
 
   console.log(`[API] ${options.method ?? 'GET'} ${url}`);
-  const response = await fetch(url, { ...options, headers });
+  let response: Response;
+  try {
+    response = await fetch(url, { ...options, headers });
+  } catch (networkError) {
+    // fetch throws TypeError for network failures (DNS, CORS, connection refused, etc.)
+    const msg = networkError instanceof Error ? networkError.message : String(networkError);
+    const error = new Error(`Network error: Unable to reach API server. ${msg}`) as Error & ApiError;
+    error.status = 0;
+    throw error;
+  }
   console.log(`[API] ${options.method ?? 'GET'} ${endpoint} → HTTP ${response.status}`);
 
   if (!response.ok) {
@@ -39,8 +48,25 @@ async function apiFetch<T>(
 
   // Handle empty responses
   const text = await response.text();
-  console.log(`[API] ${endpoint} raw body:`, text.substring(0, 500));
+  console.log(`[API] ${options.method ?? 'GET'} ${endpoint} raw body:`, text.substring(0, 500));
   if (!text) return {} as T;
+
+  // Detect HTML responses (auth redirect or server error page)
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('<!DOCTYPE') || trimmed.startsWith('<html') || trimmed.startsWith('<HTML')) {
+    const authError = new Error('Authentication required — server returned a login page instead of data. The API server may be down or requires authentication.') as Error & ApiError;
+    authError.status = 401;
+    throw authError;
+  }
+
+  // Also check content-type header for HTML responses
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('text/html') && !contentType.includes('application/json')) {
+    const authError = new Error('Authentication required — server returned HTML instead of JSON. The API server may be down or requires authentication.') as Error & ApiError;
+    authError.status = 401;
+    throw authError;
+  }
+
   const parsed = JSON.parse(text);
   // Some APIs wrap responses in {result, data} — unwrap if present
   const result = parsed.data ?? parsed;

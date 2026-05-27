@@ -2,21 +2,24 @@ import React, { useState, useCallback, useRef, useMemo, useEffect } from "react"
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { AutoFitText } from "./AutoFitText";
-import { Settings as LucideSettings } from "lucide-react";
+import { Settings as LucideSettings, Eye, EyeOff } from "lucide-react";
+// Password toggle v2
 import type { ReportField } from "./ReportFieldsTab";
 import type { ImageDocument } from "./ImagesTab";
+import { ImagePickerModal } from "./ImagePickerModal";
 import {
   AttachmentIcon, CalendarIcon, CheckBoxIcon, ContainerIcon, DividerWidgetIcon,
   DropdownIcon, TemplateTitleIcon, TemplateDescriptionIcon, HeaderIcon, ImageWidgetIcon,
   InternalFieldIcon, ParagraphIcon, PartnerTagsIcon, RadioButtonIcon, ReportFieldIcon,
   SubgroupIcon, TextBoxIcon, TextAreaIcon, NumberInputIcon, ToggleIcon, SignatureIcon,
+  RangeSliderIcon, ColorPickerIcon, RichTextIcon,
   ColumnsIcon, SpacerIcon, PageBreakIcon, ButtonWidgetIcon, AlertIcon, RepeaterIcon,
   CanvasSettingsIcon, DragHandleIcon, TrashIcon, ChevronIcon, StructureIcon, SettingsIcon,
   PanelCollapseIcon, StylesIcon, LayoutIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon,
   AlignJustifyIcon, WIDGET_ICON_MAP, WIDGET_TYPE_LABELS,
 } from "./template-builder-icons";
 import {
-  PropInput, PropTextarea, PropSelect, PropCheckbox, PropReadonly,
+  PropInput, PropTextarea, PropSelect, PropCheckbox, PropReadonly, PropVerticalAlign,
   PropSectionLabel, PropColorPicker, PropSlider, PropShadowPicker,
   PropBorderWidthSection, PropRadiusSection, PropSpacingSection,
   LinkIcon, SpacingInput, TypographyControls,
@@ -45,6 +48,8 @@ const DocumentContext = React.createContext<{ templateName: string; templateDesc
 // =====================================================================
 const PreviewModeContext = React.createContext(false);
 const ImagesContext = React.createContext<ImageDocument[]>([]);
+const CopiedConfigContext = React.createContext<Record<string, string | number | boolean> | null>(null);
+const SetCopiedConfigContext = React.createContext<React.Dispatch<React.SetStateAction<Record<string, string | number | boolean> | null>>>(() => {});
 
 // =====================================================================
 // Types
@@ -924,7 +929,43 @@ function buildCategories(
     type: "image",
     label: "Image",
     icon: <ImageWidgetIcon />,
-    defaultConfig: { imageId: "", imageName: "Select image..." },
+    defaultConfig: {
+      imageId: "",
+      imageName: "Select image...",
+      alt: "",
+      objectFit: "contain",
+      width: "",
+      height: "",
+      srcUrl: "",
+      borderRadius: "",
+      borderWidth: "",
+      borderColor: "",
+      borderStyle: "solid",
+      boxShadow: "none",
+      paddingTop: "",
+      paddingRight: "",
+      paddingBottom: "",
+      paddingLeft: "",
+      marginTop: "",
+      marginRight: "",
+      marginBottom: "",
+      marginLeft: "",
+      backgroundColor: "",
+      alignment: "center",
+      objectPosition: "center",
+      opacity: "100",
+      grayscale: false,
+      blur: "",
+      brightness: "100",
+      contrast: "100",
+      linkUrl: "",
+      linkTarget: "_self",
+      caption: "",
+      hoverScale: false,
+      hoverOpacity: "",
+      hoverShadow: "none",
+      loading: "eager",
+    },
   };
   const alertWidget: PaletteWidget = {
     type: "alert",
@@ -1005,6 +1046,24 @@ function buildCategories(
     label: "Signature",
     icon: <SignatureIcon />,
     defaultConfig: { label: "Signature", hint: "Sign within the box", required: false },
+  };
+  const rangeWidget: PaletteWidget = {
+    type: "range",
+    label: "Range Slider",
+    icon: <RangeSliderIcon />,
+    defaultConfig: { label: "Range", min: 0, max: 100, step: 1, showValue: true, required: false },
+  };
+  const colorWidget: PaletteWidget = {
+    type: "color",
+    label: "Color Picker",
+    icon: <ColorPickerIcon />,
+    defaultConfig: { label: "Choose Color", defaultColor: "#46367F", showOpacity: false, required: false },
+  };
+  const richTextWidget: PaletteWidget = {
+    type: "rich-text",
+    label: "Rich Text",
+    icon: <RichTextIcon />,
+    defaultConfig: { label: "Content", toolbar: "bold,italic,underline,strikethrough,fontSize,lists,orderedLists,indent,outdent,alignLeft,alignCenter,alignRight,alignJustify,links,textColor,highlight", required: false },
   };
 
   // ── Layout Widgets ──
@@ -1162,6 +1221,9 @@ function buildCategories(
               calendarWidget,
               toggleWidget,
               signatureWidget,
+              rangeWidget,
+              colorWidget,
+              richTextWidget,
             ],
           },
         ]
@@ -1372,12 +1434,280 @@ function CheckboxWidget({ c, textCSS }: { c: Record<string, string | number | bo
   );
 }
 
+function MaskedTextInput({
+  maskPattern,
+  inputFormat,
+  placeholder,
+  maxLength,
+  ariaLabel,
+  ariaRequired,
+  className,
+  style,
+  onClick,
+}: {
+  maskPattern: string;
+  inputFormat: string;
+  placeholder: string;
+  maxLength?: number;
+  ariaLabel: string;
+  ariaRequired: boolean;
+  className: string;
+  style: React.CSSProperties;
+  onClick: (e: React.MouseEvent) => void;
+}) {
+  const [rawValue, setRawValue] = React.useState("");
+
+  const effectiveMask = React.useMemo(() => {
+    if (maskPattern !== "none") return maskPattern;
+    if (inputFormat === "tel") return "phone-us";
+    if (inputFormat === "url") return "url";
+    return "none";
+  }, [maskPattern, inputFormat]);
+
+  const formatValue = React.useCallback(
+    (val: string) => {
+      const digits = val.replace(/\D/g, "");
+      switch (effectiveMask) {
+        case "phone-us":
+          if (digits.length === 0) return "";
+          if (digits.length <= 3) return `(${digits}`;
+          if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+          return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+        case "phone-intl": {
+          if (digits.length === 0) return "";
+          if (digits.length <= 1) return `+${digits}`;
+          if (digits.length <= 4) return `+${digits.slice(0, 1)} ${digits.slice(1)}`;
+          if (digits.length <= 7) return `+${digits.slice(0, 1)} ${digits.slice(1, 4)}-${digits.slice(4)}`;
+          return `+${digits.slice(0, 1)} ${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7, 11)}`;
+        }
+        case "ssn":
+          if (digits.length === 0) return "";
+          if (digits.length <= 3) return digits;
+          if (digits.length <= 5) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+          return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5, 9)}`;
+        case "zip":
+          return digits.slice(0, 5);
+        case "date": {
+          const nums = val.replace(/\D/g, "");
+          if (nums.length === 0) return "";
+          if (nums.length <= 2) return nums;
+          if (nums.length <= 4) return `${nums.slice(0, 2)}/${nums.slice(2)}`;
+          return `${nums.slice(0, 2)}/${nums.slice(2, 4)}/${nums.slice(4, 8)}`;
+        }
+        case "currency": {
+          const nums = val.replace(/\D/g, "");
+          if (nums.length === 0) return "";
+          const dollars = nums.slice(0, -2) || "0";
+          const cents = nums.slice(-2).padStart(2, "0");
+          return `$${Number(dollars).toLocaleString()}.${cents}`;
+        }
+        case "percentage": {
+          const nums = val.replace(/\D/g, "");
+          if (nums.length === 0) return "";
+          return `${Math.min(100, Number(nums))}%`;
+        }
+        case "url": {
+          const trimmed = val.trim();
+          if (trimmed === "" || /^https?:\/\//i.test(trimmed)) return trimmed;
+          return `https://${trimmed}`;
+        }
+        default:
+          return val;
+      }
+    },
+    [effectiveMask]
+  );
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (effectiveMask === "url") {
+      // For URL, strip the auto-prefix on edit so user can type freely
+      const stripped = val.replace(/^https?:\/\//i, "");
+      setRawValue(stripped);
+    } else {
+      setRawValue(val);
+    }
+  };
+
+  const displayValue = formatValue(rawValue);
+  const displayPlaceholder =
+    effectiveMask === "phone-us"
+      ? "(555) 123-4567"
+      : effectiveMask === "phone-intl"
+        ? "+1 234-567-8901"
+        : effectiveMask === "ssn"
+          ? "123-45-6789"
+          : effectiveMask === "zip"
+            ? "12345"
+            : effectiveMask === "date"
+              ? "MM/DD/YYYY"
+              : effectiveMask === "currency"
+                ? "$0.00"
+                : effectiveMask === "percentage"
+                  ? "0%"
+                  : effectiveMask === "url"
+                    ? "example.com"
+                    : placeholder;
+
+  const [showPassword, setShowPassword] = React.useState(false);
+  const isPassword = inputFormat === "password";
+  const inputType = isPassword
+    ? (showPassword ? "text" : "password")
+    : inputFormat === "email"
+      ? "email"
+      : inputFormat === "tel"
+        ? "tel"
+        : inputFormat === "url"
+          ? "url"
+          : inputFormat === "search"
+            ? "search"
+            : "text";
+
+  return (
+    <div className="relative w-full">
+      <input
+        type={inputType}
+        value={displayValue}
+        placeholder={displayPlaceholder}
+        maxLength={maxLength}
+        aria-label={ariaLabel}
+        aria-required={ariaRequired}
+        className={`${className} ${isPassword ? "pr-10" : ""}`}
+        style={style}
+        onChange={handleChange}
+        onClick={onClick}
+      />
+      {isPassword && (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={showPassword ? "Hide password" : "Show password"}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-ds-gray hover:text-ds-dark-gray transition-colors p-1 rounded cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPassword((v) => !v);
+          }}
+        >
+          {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ── InlineEditable — click-to-edit text directly on the canvas ── */
+function InlineEditable({
+  value,
+  onChange,
+  style,
+  className,
+  placeholder,
+  multiline = false,
+  tag: Tag = "span",
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  style?: React.CSSProperties;
+  className?: string;
+  placeholder?: string;
+  multiline?: boolean;
+  tag?: "span" | "div" | "label" | "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const previewMode = React.useContext(PreviewModeContext);
+
+  React.useEffect(() => {
+    setDraft(value);
+  }, [value]);
+
+  React.useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      // Place cursor at the end
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
+    }
+  }, [editing]);
+
+  if (previewMode) {
+    return (
+      <Tag style={style} className={className}>
+        {value || placeholder || ""}
+      </Tag>
+    );
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        dir="ltr"
+        style={{
+          ...style,
+          outline: "none",
+          boxShadow: "0 0 0 2px rgba(70,54,127,0.3)",
+          borderRadius: "4px",
+          padding: "0 4px",
+          backgroundColor: "white",
+          cursor: "text",
+          minWidth: "20px",
+          width: "auto",
+          border: "none",
+          fontFamily: style?.fontFamily,
+          fontSize: style?.fontSize,
+          fontWeight: style?.fontWeight,
+          color: style?.color,
+          textAlign: "left",
+        }}
+        className={className}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          const newVal = draft.trim();
+          onChange(newVal);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !multiline) {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+          if (e.key === "Escape") {
+            setDraft(value);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <Tag
+      dir="ltr"
+      style={{ ...style, cursor: "text" }}
+      className={className}
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      title="Click to edit"
+    >
+      {value || placeholder || ""}
+    </Tag>
+  );
+}
+
 function RadioWidget({ c, rbCSS, elementId }: { c: Record<string, string | number | boolean>; rbCSS: React.CSSProperties; elementId: string }) {
   const opts = String(c.options || "Option 1,Option 2,Option 3").split(",").map((s) => s.trim()).filter(Boolean);
   const [selected, setSelected] = React.useState(opts[0] ?? "");
+  const isHorizontal = String(c.layout || "vertical") === "horizontal";
   return (
-    <div className="flex flex-col gap-2.5" onClick={(e) => e.stopPropagation()}>
-      {c.label && <span style={{ ...rbCSS, fontWeight: 600 }}>{String(c.label)}</span>}
+    <div className={`flex ${isHorizontal ? "flex-row flex-wrap gap-x-5 gap-y-2" : "flex-col gap-2.5"}`} onClick={(e) => e.stopPropagation()}>
+      {c.label && <span style={{ ...rbCSS, fontWeight: 600 }} className={isHorizontal ? "w-full" : ""}>{String(c.label)}</span>}
       {opts.map((opt, i) => (
         <label key={i} className="flex items-center gap-2.5 cursor-pointer select-none">
           <input
@@ -1511,7 +1841,7 @@ function SignatureWidget({ c, sigCSS }: { c: Record<string, string | number | bo
 
   return (
     <div className="flex flex-col gap-2">
-      <label style={{ ...sigCSS, fontWeight: 600 }}>
+      <label dir="ltr" style={{ ...sigCSS, fontWeight: 600 }}>
         {String(c.label || "Signature")}
         {c.required && <span className="text-red-500 ml-1">*</span>}
       </label>
@@ -1625,6 +1955,10 @@ function CanvasItem({
   onDropInCell,
   onMoveInCell,
   onUpdateConfig,
+  onImagePick,
+  onCopyConfig,
+  onPasteConfig,
+  hasCopiedConfig,
   onCrossMove,
   isNested = false,
 }: {
@@ -1644,6 +1978,10 @@ function CanvasItem({
   onMoveInCell: (containerId: string, rowIdx: number, colIdx: number, dragIdx: number, hoverIdx: number) => void;
   onUpdateConfig: (id: string, config: Record<string, string | number | boolean>) => void;
   onCrossMove?: (elementId: string, targetContainerId: string, targetRowIdx: number, targetColIdx: number, insertIndex?: number) => void;
+  onImagePick?: (elementId: string) => void;
+  onCopyConfig?: () => void;
+  onPasteConfig?: () => void;
+  hasCopiedConfig?: WidgetType | false;
   isNested?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -1757,7 +2095,7 @@ function CanvasItem({
         loadGoogleFont(ts.fontFamily);
         const cssStyle = textStyleToCSS(ts);
         const headerTag = String(c.tag || "H2").toLowerCase() as "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "div" | "p" | "span";
-        return (
+        return previewMode ? (
           <AutoFitText
             as={headerTag}
             text={String(c.text || "Section Header")}
@@ -1768,6 +2106,14 @@ function CanvasItem({
             minFontSize={10}
             style={cssStyle}
           />
+        ) : (
+          <InlineEditable
+            tag={headerTag}
+            value={String(c.text || "Section Header")}
+            onChange={(v) => onUpdate({ ...c, text: v })}
+            style={cssStyle}
+            placeholder="Section Header"
+          />
         );
       }
 
@@ -1777,7 +2123,7 @@ function CanvasItem({
         const ts = resolveTextStyle(gs, c);
         loadGoogleFont(ts.fontFamily);
         const cssStyle = textStyleToCSS(ts);
-        return (
+        return previewMode ? (
           <AutoFitText
             as="p"
             text={String(c.text || "Enter your text here…")}
@@ -1789,6 +2135,15 @@ function CanvasItem({
             className="leading-relaxed whitespace-pre-wrap"
             style={cssStyle}
           />
+        ) : (
+          <InlineEditable
+            tag="p"
+            value={String(c.text || "Enter your text here…")}
+            onChange={(v) => onUpdate({ ...c, text: v })}
+            style={{ ...cssStyle, whiteSpace: "pre-wrap" }}
+            placeholder="Enter your text here…"
+            multiline
+          />
         );
       }
 
@@ -1798,25 +2153,68 @@ function CanvasItem({
         const _tbTs = resolveTextStyle(_tbGs, c);
         loadGoogleFont(_tbTs.fontFamily);
         const _tbLabelCSS = textStyleToCSS(_tbTs);
+        const tbInputFormat = String(c.inputFormat || "text");
+        const tbMaxLength = c.maxLength ? Number(c.maxLength) : undefined;
+        const tbMaskPattern = String(c.maskPattern || "none");
+        const tbEffectiveMask = tbMaskPattern !== "none" ? tbMaskPattern : tbInputFormat === "tel" ? "phone-us" : tbInputFormat === "url" ? "url" : "none";
+        const tbMaskHints: Record<string, string> = {
+          "phone-us": "(___) ___-____",
+          "phone-intl": "+__ ___-___-____",
+          "ssn": "___-__-____",
+          "zip": "_____",
+          "date": "MM/DD/YYYY",
+          "currency": "$___.__",
+          "percentage": "___%",
+          "url": "https://example.com",
+        };
+        const tbVerticalAlign = String(c.verticalAlign || "top");
+        const tbFlexJustify =
+          tbVerticalAlign === "center" ? "center" :
+          tbVerticalAlign === "bottom" ? "flex-end" :
+          tbVerticalAlign === "justify" ? "space-between" :
+          "flex-start";
         return (
-          <div className="flex flex-col gap-1.5">
-            <label style={{ ..._tbLabelCSS, fontWeight: _tbTs.fontWeight || 600 }}>
-              {String(c.label || "Text Field")}
+          <div className="flex flex-col gap-1.5" style={{ justifyContent: tbFlexJustify, flex: "1 1 auto", minHeight: 0 }}>
+            <label dir="ltr" style={{ ..._tbLabelCSS, fontWeight: _tbTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Text Field")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _tbTs.fontWeight || 600 }}
+                placeholder="Text Field"
+              />
               {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
-            {previewMode ? (
-              <input
-                type="text"
-                placeholder={String(c.placeholder || "Enter value…")}
-                className="border border-ds-haze rounded-md px-3 py-2 bg-white text-[12px] outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors"
-                style={{ fontFamily: _tbLabelCSS.fontFamily }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <div className="border border-ds-haze rounded-md px-3 py-2 bg-gray-50 text-[12px] text-ds-light-gray italic select-none" style={{ fontFamily: _tbLabelCSS.fontFamily }}>
-                {String(c.placeholder || "Enter value…")}
-              </div>
-            )}
+            <div className="flex flex-col gap-1.5">
+              {previewMode ? (
+                <MaskedTextInput
+                  maskPattern={tbMaskPattern}
+                  inputFormat={tbInputFormat}
+                  placeholder={String(c.placeholder || "Enter value…")}
+                  maxLength={tbMaxLength}
+                  ariaLabel={String(c.label || "Text Field")}
+                  ariaRequired={!!c.required}
+                  className="border border-ds-haze rounded-md px-3 py-2 bg-white text-[12px] outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors"
+                  style={{ fontFamily: _tbLabelCSS.fontFamily }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <div className="border border-ds-haze rounded-md px-3 py-2 bg-gray-50 text-[12px] text-ds-light-gray italic select-none" style={{ fontFamily: _tbLabelCSS.fontFamily }}>
+                  {tbEffectiveMask !== "none" && tbMaskHints[tbEffectiveMask]
+                    ? tbMaskHints[tbEffectiveMask]
+                    : String(c.placeholder || "Enter value…")}
+                </div>
+              )}
+              {tbMaxLength && (
+                <span className="font-['Poppins',sans-serif'] text-[9px] text-ds-light-gray">
+                  Max {tbMaxLength} characters
+                </span>
+              )}
+              {tbEffectiveMask !== "none" && !previewMode && (
+                <span className="font-['Poppins',sans-serif'] text-[9px] text-ds-teal">
+                  Format: {tbMaskHints[tbEffectiveMask] || tbEffectiveMask}
+                </span>
+              )}
+            </div>
           </div>
         );
       }
@@ -1824,20 +2222,111 @@ function CanvasItem({
       /* ── Image ── */
       case "image": {
         const imgId = String(c.imageId || "");
-        const imgDoc = imgId ? imagesList.find((im: ImageDocument) => im.id === imgId) : null;
-        if (imgDoc && imgDoc.previewSrc) {
-          return (
-            <div className="flex flex-col items-center justify-center gap-1 rounded-lg overflow-hidden" style={{ maxHeight: 200 }}>
-              <img
-                src={imgDoc.previewSrc}
-                alt={String(c.imageName || imgDoc.name || "Image")}
-                className="max-w-full max-h-[200px] object-contain rounded"
-              />
-            </div>
-          );
-        }
-        return (
-          <div className="flex flex-col items-center justify-center gap-2.5 bg-gray-50 border-2 border-dashed border-ds-haze rounded-lg py-8">
+        const srcUrl = String(c.srcUrl || "").trim();
+        const imgDoc = imgId && !srcUrl ? imagesList.find((im: ImageDocument) => im.id === imgId) : null;
+        const imgSrc = srcUrl || (imgDoc ? imgDoc.previewSrc : "");
+        const imgAlt = String(c.alt || imgDoc?.name || c.imageName || "Image");
+        const objectFit = String(c.objectFit || "contain");
+        const width = String(c.width || "");
+        const height = String(c.height || "");
+        const borderRadius = String(c.borderRadius || "");
+        const borderWidth = String(c.borderWidth || "");
+        const borderColor = String(c.borderColor || "");
+        const borderStyle = String(c.borderStyle || "solid");
+        const boxShadow = String(c.boxShadow || "none");
+        const paddingTop = String(c.paddingTop || "");
+        const paddingRight = String(c.paddingRight || "");
+        const paddingBottom = String(c.paddingBottom || "");
+        const paddingLeft = String(c.paddingLeft || "");
+        const marginTop = String(c.marginTop || "");
+        const marginRight = String(c.marginRight || "");
+        const marginBottom = String(c.marginBottom || "");
+        const marginLeft = String(c.marginLeft || "");
+        const backgroundColor = String(c.backgroundColor || "");
+        const alignment = String(c.alignment || "center");
+        const objectPosition = String(c.objectPosition || "center");
+        const opacity = String(c.opacity || "100");
+        const grayscale = !!c.grayscale;
+        const blur = String(c.blur || "");
+        const brightness = String(c.brightness || "100");
+        const contrast = String(c.contrast || "100");
+        const linkUrl = String(c.linkUrl || "").trim();
+        const linkTarget = String(c.linkTarget || "_self");
+        const caption = String(c.caption || "");
+        const hoverScale = !!c.hoverScale;
+        const hoverOpacity = String(c.hoverOpacity || "");
+        const hoverShadow = String(c.hoverShadow || "none");
+        const loading = String(c.loading || "eager");
+
+        const alignClass = alignment === "left" ? "items-start" : alignment === "right" ? "items-end" : "items-center";
+        const justifyClass = alignment === "stretch" ? "justify-stretch" : "justify-center";
+
+        const wrapperStyle: React.CSSProperties = {
+          width: width || undefined,
+          height: height || undefined,
+          maxHeight: height ? undefined : 200,
+          borderRadius: borderRadius || undefined,
+          borderWidth: borderWidth || undefined,
+          borderColor: borderColor || undefined,
+          borderStyle: borderStyle !== "none" ? borderStyle : undefined,
+          boxShadow: boxShadow !== "none" ? boxShadow : undefined,
+          paddingTop: paddingTop || undefined,
+          paddingRight: paddingRight || undefined,
+          paddingBottom: paddingBottom || undefined,
+          paddingLeft: paddingLeft || undefined,
+          marginTop: marginTop || undefined,
+          marginRight: marginRight || undefined,
+          marginBottom: marginBottom || undefined,
+          marginLeft: marginLeft || undefined,
+          backgroundColor: backgroundColor || undefined,
+          opacity: opacity !== "100" ? Number(opacity) / 100 : undefined,
+        };
+
+        const imgStyle: React.CSSProperties = {
+          objectFit,
+          width: width || "100%",
+          height: height || "auto",
+          objectPosition,
+          filter: [
+            grayscale ? "grayscale(100%)" : "",
+            blur ? `blur(${blur}px)` : "",
+            brightness !== "100" ? `brightness(${brightness}%)` : "",
+            contrast !== "100" ? `contrast(${contrast}%)` : "",
+          ].filter(Boolean).join(" ") || undefined,
+        };
+
+        const hoverClass = hoverScale ? "hover:scale-105 transition-transform" : "";
+        const hoverStyle: React.CSSProperties = {
+          opacity: hoverOpacity ? Number(hoverOpacity) / 100 : undefined,
+          boxShadow: hoverShadow !== "none" ? hoverShadow : undefined,
+        };
+
+        const imgContent = imgSrc ? (
+          <div className={`flex flex-col ${alignClass} ${justifyClass} gap-1 overflow-hidden`} style={wrapperStyle}>
+            <img
+              src={imgSrc}
+              alt={imgAlt}
+              className={`max-w-full max-h-[200px] ${hoverClass}`}
+              style={imgStyle}
+              loading={loading as "eager" | "lazy"}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+                const fallback = (e.target as HTMLImageElement).parentElement;
+                if (fallback) {
+                  fallback.innerHTML = `<div class="flex flex-col items-center justify-center gap-2 py-8"><div class="w-10 h-10 text-ds-light-gray">${icon}</div><span class="font-[Poppins,sans-serif] text-[11px] text-ds-gray">Image unavailable</span></div>`;
+                }
+              }}
+            />
+            {caption && (
+              <span className="font-['Poppins',sans-serif] text-[11px] text-ds-gray mt-1">{caption}</span>
+            )}
+          </div>
+        ) : (
+          <div
+            className="flex flex-col items-center justify-center gap-2.5 bg-gray-50 border-2 border-dashed border-ds-haze rounded-lg py-8 cursor-pointer hover:border-ds-purple hover:bg-ds-purple-light/30 transition-colors"
+            style={wrapperStyle}
+            onClick={(e) => { e.stopPropagation(); onImagePick?.(element.id); }}
+          >
             <div className="w-10 h-10 text-ds-light-gray">{icon}</div>
             <span className="font-['Poppins',sans-serif] text-[11px] text-ds-gray">
               {String(c.imageName) && String(c.imageName) !== "Select image..."
@@ -1846,6 +2335,22 @@ function CanvasItem({
             </span>
           </div>
         );
+
+        if (linkUrl) {
+          return (
+            <a
+              href={linkUrl}
+              target={linkTarget}
+              rel={linkTarget === "_blank" ? "noopener noreferrer" : undefined}
+              className="block no-underline"
+              style={hoverStyle}
+            >
+              {imgContent}
+            </a>
+          );
+        }
+
+        return imgContent;
       }
 
       /* ── Attachment ── */
@@ -1854,6 +2359,9 @@ function CanvasItem({
         const _attTs = resolveTextStyle(_attGs, c);
         loadGoogleFont(_attTs.fontFamily);
         const _attCSS = textStyleToCSS(_attTs);
+        const attAccept = String(c.accept || "*");
+        const attMultiple = !!c.multiple;
+        const attMaxSize = c.maxFileSize ? String(c.maxFileSize) : "";
         if (previewMode) {
           const _attInputRef = React.createRef<HTMLInputElement>();
           return (
@@ -1865,18 +2373,29 @@ function CanvasItem({
                 ref={_attInputRef}
                 type="file"
                 className="hidden"
-                accept={c.accept ? String(c.accept) : undefined}
+                accept={attAccept !== "*" ? attAccept : undefined}
+                multiple={attMultiple}
                 onClick={(e) => e.stopPropagation()}
               />
               <div className="w-8 h-8 text-ds-teal">{icon}</div>
               <div className="flex flex-col items-center gap-0.5">
                 <span style={{ ..._attCSS, fontSize: `${Math.min(_attTs.fontSize, 12)}px`, fontWeight: _attTs.fontWeight || 500 }}>
-                  {String(c.label || "Upload File")}
+                  <InlineEditable
+                    value={String(c.label || "Upload File")}
+                    onChange={(v) => onUpdate({ ...c, label: v })}
+                    style={{ fontWeight: _attTs.fontWeight || 500 }}
+                    placeholder="Upload File"
+                  />
                   {c.required && <span className="text-red-500 ml-1">*</span>}
                 </span>
                 <span style={{ ..._attCSS, fontSize: "10px", color: "#b0b0b0" }}>
                   Click or drag a file to upload
                 </span>
+                {(attAccept !== "*" || attMaxSize || attMultiple) && (
+                  <span style={{ ..._attCSS, fontSize: "9px", color: "#c0c0c0" }}>
+                    {[attAccept !== "*" ? attAccept : null, attMaxSize ? `Max ${attMaxSize}MB` : null, attMultiple ? "Multiple files" : null].filter(Boolean).join(" • ")}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -1886,11 +2405,21 @@ function CanvasItem({
             <div className="w-8 h-8 text-ds-teal">{icon}</div>
             <div className="flex flex-col items-center gap-0.5">
               <span style={{ ..._attCSS, fontSize: `${Math.min(_attTs.fontSize, 12)}px`, fontWeight: _attTs.fontWeight || 500 }}>
-                {String(c.label || "Upload File")}
+                <InlineEditable
+                  value={String(c.label || "Upload File")}
+                  onChange={(v) => onUpdate({ ...c, label: v })}
+                  style={{ fontWeight: _attTs.fontWeight || 500 }}
+                  placeholder="Upload File"
+                />
               </span>
               <span style={{ ..._attCSS, fontSize: "10px", color: "#b0b0b0" }}>
                 Click or drag a file to upload
               </span>
+              {(attAccept !== "*" || attMaxSize || attMultiple) && (
+                <span style={{ ..._attCSS, fontSize: "9px", color: "#c0c0c0" }}>
+                  {[attAccept !== "*" ? attAccept : null, attMaxSize ? `Max ${attMaxSize}MB` : null, attMultiple ? "Multiple files" : null].filter(Boolean).join(" • ")}
+                </span>
+              )}
             </div>
           </div>
         );
@@ -1910,7 +2439,12 @@ function CanvasItem({
           <label className="flex items-center gap-2.5 cursor-default select-none">
             <div className="w-4 h-4 border-2 border-ds-purple rounded-sm shrink-0 bg-white" />
             <span style={textStyleToCSS(_cbTs)}>
-              {String(c.label || "I agree")}
+              <InlineEditable
+                value={String(c.label || "I agree")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={textStyleToCSS(_cbTs)}
+                placeholder="I agree"
+              />
             </span>
             {c.required && <span className="text-red-500 text-sm ml-0.5">*</span>}
           </label>
@@ -1927,14 +2461,20 @@ function CanvasItem({
         const _rbTs = resolveTextStyle(_rbGs, c);
         loadGoogleFont(_rbTs.fontFamily);
         const _rbCSS = textStyleToCSS(_rbTs);
+        const rbIsHorizontal = String(c.layout || "vertical") === "horizontal";
         if (previewMode) {
           return <RadioWidget c={c} rbCSS={_rbCSS} elementId={element.id} />;
         }
         return (
-          <div className="flex flex-col gap-2.5">
+          <div className={`flex ${rbIsHorizontal ? "flex-row flex-wrap gap-x-5 gap-y-2" : "flex-col gap-2.5"}`}>
             {c.label && (
-              <span style={{ ..._rbCSS, fontWeight: _rbTs.fontWeight || 600 }}>
-                {String(c.label)}
+              <span style={{ ..._rbCSS, fontWeight: _rbTs.fontWeight || 600 }} className={rbIsHorizontal ? "w-full" : ""}>
+                <InlineEditable
+                  value={String(c.label)}
+                  onChange={(v) => onUpdate({ ...c, label: v })}
+                  style={{ fontWeight: _rbTs.fontWeight || 600 }}
+                  placeholder="Label"
+                />
                 {c.required && <span className="text-red-500 ml-1">*</span>}
               </span>
             )}
@@ -1963,13 +2503,20 @@ function CanvasItem({
         return (
           <div className="flex flex-col gap-1.5">
             {c.label && (
-              <label style={{ ..._ddCSS, fontWeight: _ddTs.fontWeight || 600 }}>
-                {String(c.label)}
+              <label dir="ltr" style={{ ..._ddCSS, fontWeight: _ddTs.fontWeight || 600 }}>
+                <InlineEditable
+                  value={String(c.label)}
+                  onChange={(v) => onUpdate({ ...c, label: v })}
+                  style={{ fontWeight: _ddTs.fontWeight || 600 }}
+                  placeholder="Label"
+                />
                 {c.required && <span className="text-red-500 ml-1">*</span>}
               </label>
             )}
             {previewMode ? (
               <select
+                aria-label={String(c.label || "Select")}
+                aria-required={!!c.required}
                 className="border border-ds-haze rounded-md px-3 py-2 bg-white outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors appearance-none cursor-pointer"
                 style={{ ...(_ddCSS), fontSize: `${Math.min(_ddTs.fontSize, 12)}px` }}
                 onClick={(e) => e.stopPropagation()}
@@ -1998,15 +2545,30 @@ function CanvasItem({
         const _calTs = resolveTextStyle(_calGs, c);
         loadGoogleFont(_calTs.fontFamily);
         const _calCSS = textStyleToCSS(_calTs);
+        const calDateType = String(c.dateType || "date");
+        const calPlaceholderMap: Record<string, string> = {
+          "date": "MM / DD / YYYY",
+          "time": "HH : MM",
+          "datetime-local": "MM / DD / YYYY HH : MM",
+          "month": "MM / YYYY",
+          "week": "WW / YYYY",
+        };
         return (
           <div className="flex flex-col gap-1.5">
-            <label style={{ ..._calCSS, fontWeight: _calTs.fontWeight || 600 }}>
-              {String(c.label || "Date")}
+            <label dir="ltr" style={{ ..._calCSS, fontWeight: _calTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Date")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _calTs.fontWeight || 600 }}
+                placeholder="Date"
+              />
               {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             {previewMode ? (
               <input
-                type="date"
+                type={calDateType}
+                aria-label={String(c.label || "Date")}
+                aria-required={!!c.required}
                 className="border border-ds-haze rounded-md px-3 py-2 bg-white outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors cursor-pointer"
                 style={{ fontFamily: _calCSS.fontFamily, fontSize: `${Math.min(_calTs.fontSize, 12)}px` }}
                 onClick={(e) => e.stopPropagation()}
@@ -2014,7 +2576,7 @@ function CanvasItem({
             ) : (
               <div className="border border-ds-haze rounded-md px-3 py-2 bg-white flex items-center justify-between select-none cursor-default">
                 <span style={{ ..._calCSS, color: "#b0b0b0", fontSize: `${Math.min(_calTs.fontSize, 12)}px` }}>
-                  MM / DD / YYYY
+                  {calPlaceholderMap[calDateType] || "MM / DD / YYYY"}
                 </span>
                 <div className="w-4 h-4 text-ds-teal shrink-0">{icon}</div>
               </div>
@@ -2159,6 +2721,10 @@ function CanvasItem({
                       onDelete={onDeleteById}
                       onDuplicate={onDuplicateById}
                       onUpdateConfig={onUpdateConfig}
+                      onImagePick={onImagePick}
+                      onCopyConfig={onCopyConfig}
+                      onPasteConfig={onPasteConfig}
+                      hasCopiedConfig={hasCopiedConfig}
                       onDropInCell={onDropInCell}
                       onMoveInCell={onMoveInCell}
                       onCrossMove={onCrossMove}
@@ -2247,7 +2813,7 @@ function CanvasItem({
         return (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <label style={{ ..._rfCSS, fontWeight: _rfTs.fontWeight || 600 }}>
+              <label dir="ltr" style={{ ..._rfCSS, fontWeight: _rfTs.fontWeight || 600 }}>
                 {String(c.fieldName || element.label)}
               </label>
               <span className="font-['Poppins',sans-serif] text-[9px] text-ds-purple bg-ds-purple-light px-1.5 py-0.5 rounded">
@@ -2278,15 +2844,25 @@ function CanvasItem({
         const _taTs = resolveTextStyle(_taGs, c);
         loadGoogleFont(_taTs.fontFamily);
         const _taCSS = textStyleToCSS(_taTs);
+        const taMaxLength = c.maxLength ? Number(c.maxLength) : undefined;
+        const taShowCharCount = !!c.showCharCount;
         return (
           <div className="flex flex-col gap-1.5">
-            <label style={{ ..._taCSS, fontWeight: _taTs.fontWeight || 600 }}>
-              {String(c.label || "Notes")}
+            <label dir="ltr" style={{ ..._taCSS, fontWeight: _taTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Notes")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _taTs.fontWeight || 600 }}
+                placeholder="Notes"
+              />
             </label>
             {previewMode ? (
               <textarea
                 placeholder={String(c.placeholder || "Enter text here…")}
                 rows={Math.max(2, Number(c.rows || 4))}
+                maxLength={taMaxLength}
+                aria-label={String(c.label || "Notes")}
+                aria-required={!!c.required}
                 className="border border-ds-haze rounded-md px-3 py-2 bg-white outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors resize-y"
                 style={{ fontFamily: _taCSS.fontFamily, fontSize: `${Math.min(_taTs.fontSize, 12)}px` }}
                 onClick={(e) => e.stopPropagation()}
@@ -2299,6 +2875,11 @@ function CanvasItem({
                 {String(c.placeholder || "Enter text here…")}
               </div>
             )}
+            {(taMaxLength || taShowCharCount) && (
+              <span className="font-['Poppins',sans-serif'] text-[9px] text-ds-light-gray">
+                {taShowCharCount ? `0 / ${taMaxLength || '∞'}` : `Max ${taMaxLength} characters`}
+              </span>
+            )}
           </div>
         );
       }
@@ -2309,36 +2890,68 @@ function CanvasItem({
         const _niTs = resolveTextStyle(_niGs, c);
         loadGoogleFont(_niTs.fontFamily);
         const _niCSS = textStyleToCSS(_niTs);
+        const niFormat = String(c.numberFormat || "plain");
+        const niPrefix = String(c.unitPrefix || (niFormat === "currency" ? String(c.currencySymbol || "$") : ""));
+        const niSuffix = String(c.unitSuffix || (niFormat === "percentage" ? "%" : ""));
         return (
           <div className="flex flex-col gap-1.5">
-            <label style={{ ..._niCSS, fontWeight: _niTs.fontWeight || 600 }}>
-              {String(c.label || "Amount")}
+            <label dir="ltr" style={{ ..._niCSS, fontWeight: _niTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Amount")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _niTs.fontWeight || 600 }}
+                placeholder="Amount"
+              />
               {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             {previewMode ? (
-              <input
-                type="number"
-                placeholder={String(c.placeholder || "0")}
-                min={c.min !== undefined ? Number(c.min) : undefined}
-                max={c.max !== undefined ? Number(c.max) : undefined}
-                step={c.step !== undefined ? Number(c.step) : undefined}
-                className="border border-ds-haze rounded-md px-3 py-2 bg-white outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors"
-                style={{ fontFamily: _niCSS.fontFamily, fontSize: `${Math.min(_niTs.fontSize, 12)}px` }}
-                onClick={(e) => e.stopPropagation()}
-              />
+              <div className="flex items-center gap-0">
+                {niPrefix && (
+                  <span className="border border-r-0 border-ds-haze rounded-l-md px-2 py-2 bg-gray-50 text-[12px] text-ds-gray" style={{ fontFamily: _niCSS.fontFamily }}>
+                    {niPrefix}
+                  </span>
+                )}
+                <input
+                  type="number"
+                  placeholder={String(c.placeholder || "0")}
+                  min={c.min !== undefined ? Number(c.min) : undefined}
+                  max={c.max !== undefined ? Number(c.max) : undefined}
+                  step={c.step !== undefined ? Number(c.step) : undefined}
+                  className={`border border-ds-haze bg-white outline-none focus:border-ds-purple focus:ring-1 focus:ring-ds-purple/30 transition-colors text-[12px] px-3 py-2 ${niPrefix ? "" : "rounded-l-md"} ${niSuffix ? "" : "rounded-r-md"}`}
+                  style={{ fontFamily: _niCSS.fontFamily, fontSize: `${Math.min(_niTs.fontSize, 12)}px` }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                {niSuffix && (
+                  <span className="border border-l-0 border-ds-haze rounded-r-md px-2 py-2 bg-gray-50 text-[12px] text-ds-gray" style={{ fontFamily: _niCSS.fontFamily }}>
+                    {niSuffix}
+                  </span>
+                )}
+              </div>
             ) : (
-              <div className="border border-ds-haze rounded-md px-3 py-2 bg-white flex items-center justify-between select-none">
-                <span style={{ ..._niCSS, color: "#b0b0b0", fontStyle: "italic", fontSize: `${Math.min(_niTs.fontSize, 12)}px` }}>
-                  {String(c.placeholder || "0")}
-                </span>
-                <div className="flex flex-col gap-0.5 ml-2 shrink-0">
-                  <svg viewBox="0 0 10 6" fill="none" className="w-2.5 h-1.5 text-ds-gray">
-                    <path d="M1 5l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                  <svg viewBox="0 0 10 6" fill="none" className="w-2.5 h-1.5 text-ds-gray">
-                    <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
+              <div className="flex items-center gap-0">
+                {niPrefix && (
+                  <span className="border border-r-0 border-ds-haze rounded-l-md px-2 py-2 bg-gray-50 text-[12px] text-ds-gray" style={{ fontFamily: _niCSS.fontFamily }}>
+                    {niPrefix}
+                  </span>
+                )}
+                <div className={`border border-ds-haze bg-white flex items-center justify-between select-none flex-1 px-3 py-2 ${niPrefix ? "" : "rounded-l-md"} ${niSuffix ? "" : "rounded-r-md"}`}>
+                  <span style={{ ..._niCSS, color: "#b0b0b0", fontStyle: "italic", fontSize: `${Math.min(_niTs.fontSize, 12)}px` }}>
+                    {String(c.placeholder || "0")}
+                  </span>
+                  <div className="flex flex-col gap-0.5 ml-2 shrink-0">
+                    <svg viewBox="0 0 10 6" fill="none" className="w-2.5 h-1.5 text-ds-gray">
+                      <path d="M1 5l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                    <svg viewBox="0 0 10 6" fill="none" className="w-2.5 h-1.5 text-ds-gray">
+                      <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </div>
                 </div>
+                {niSuffix && (
+                  <span className="border border-l-0 border-ds-haze rounded-r-md px-2 py-2 bg-gray-50 text-[12px] text-ds-gray" style={{ fontFamily: _niCSS.fontFamily }}>
+                    {niSuffix}
+                  </span>
+                )}
               </div>
             )}
             {(c.min !== undefined || c.max !== undefined) && (
@@ -2381,7 +2994,20 @@ function CanvasItem({
               }}
               onClick={previewMode ? (e) => e.stopPropagation() : undefined}
             >
-              {String(c.label || "Submit")}
+              <InlineEditable
+                value={String(c.label || "Submit")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{
+                  fontFamily: _btnCSS.fontFamily,
+                  fontWeight: _btnTs.fontWeight || 600,
+                  textTransform: _btnCSS.textTransform,
+                  textDecoration: _btnCSS.textDecoration,
+                  letterSpacing: _btnCSS.letterSpacing,
+                  lineHeight: _btnCSS.lineHeight,
+                  ...(c.color ? { color: String(c.color) } : {}),
+                }}
+                placeholder="Submit"
+              />
             </div>
           </div>
         );
@@ -2413,11 +3039,22 @@ function CanvasItem({
             <div className="flex flex-col gap-0.5 flex-1 min-w-0">
               {String(c.title || "") && (
                 <span style={{ ..._alCSS, fontWeight: 700, color: c.color ? String(c.color) : ac.text }}>
-                  {String(c.title)}
+                  <InlineEditable
+                    value={String(c.title)}
+                    onChange={(v) => onUpdate({ ...c, title: v })}
+                    style={{ fontWeight: 700, color: c.color ? String(c.color) : ac.text }}
+                    placeholder="Title"
+                  />
                 </span>
               )}
               <span style={{ ..._alCSS, color: c.color ? String(c.color) : ac.text }}>
-                {String(c.message || "This is an important notice.")}
+                <InlineEditable
+                  value={String(c.message || "This is an important notice.")}
+                  onChange={(v) => onUpdate({ ...c, message: v })}
+                  style={{ color: c.color ? String(c.color) : ac.text }}
+                  placeholder="This is an important notice."
+                  multiline
+                />
               </span>
             </div>
           </div>
@@ -2437,7 +3074,12 @@ function CanvasItem({
         return (
           <div className="flex items-center justify-between gap-4 select-none">
             <span style={{ ..._tgCSS, fontWeight: _tgTs.fontWeight || 500 }}>
-              {String(c.label || "Enable")}
+              <InlineEditable
+                value={String(c.label || "Enable")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _tgTs.fontWeight || 500 }}
+                placeholder="Enable"
+              />
             </span>
             <div className="flex items-center gap-2">
               {!isOn && <span style={{ ..._tgCSS, fontSize: "11px", color: "#b0b0b0" }}>{String(c.offLabel || "No")}</span>}
@@ -2467,8 +3109,13 @@ function CanvasItem({
         }
         return (
           <div className="flex flex-col gap-2">
-            <label style={{ ..._sigCSS, fontWeight: _sigTs.fontWeight || 600 }}>
-              {String(c.label || "Signature")}
+            <label dir="ltr" style={{ ..._sigCSS, fontWeight: _sigTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Signature")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _sigTs.fontWeight || 600 }}
+                placeholder="Signature"
+              />
               {c.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             <div className="border border-ds-haze rounded-lg bg-gray-50 flex flex-col items-center justify-end" style={{ height: 100 }}>
@@ -2478,8 +3125,436 @@ function CanvasItem({
               </svg>
               <div className="w-full border-t-2 border-dashed border-ds-purple/20 mt-auto" />
               <span className="font-['Poppins',sans-serif] text-[10px] text-ds-light-gray py-1.5">
-                {String(c.hint || "Sign within the box")}
+                <InlineEditable
+                  value={String(c.hint || "Sign within the box")}
+                  onChange={(v) => onUpdate({ ...c, hint: v })}
+                  style={{ fontSize: "10px", color: "#b0b0b0" }}
+                  placeholder="Sign within the box"
+                />
               </span>
+            </div>
+          </div>
+        );
+      }
+
+      /* ── Range Slider ── */
+      case "range": {
+        const { defaults: _rngGs } = getEffectiveTypography("range", c, globalTypo);
+        const _rngTs = resolveTextStyle(_rngGs, c);
+        loadGoogleFont(_rngTs.fontFamily);gValue = Number(c.defaultValue ?? rngMin);
+        const rngShowValue = c.showValue !== false;
+        return (
+          <div className="flex flex-col gap-1.5">
+            <label dir="ltr" style={{ ..._rngCSS, fontWeight: _rngTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Range")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _rngTs.fontWeight || 600 }}
+                placeholder="Range"
+              />
+              {c.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            <div className="flex items-center gap-3">
+              <span style={{ ..._rngCSS, fontSize: "10px", color: "#b0b0b0" }}>{rngMin}</span>
+              <input
+                type="range"
+                min={rngMin}
+                max={rngMax}
+                step={rngStep}
+                defaultValue={rngValue}
+                className="flex-1 h-2 bg-ds-haze rounded-full appearance-none cursor-pointer accent-ds-purple"
+                onClick={(e) => e.stopPropagation()}
+              />
+              <span style={{ ..._rngCSS, fontSize: "10px", color: "#b0b0b0" }}>{rngMax}</span>
+            </div>
+            {rngShowValue && (
+              <div className="text-center">
+                <span style={{ ..._rngCSS, fontSize: "11px", color: "#46367F", fontWeight: 600 }}>
+                  {rngValue}
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      /* ── Color Picker ── */
+      case "color": {
+        const { defaults: _clrGs } = getEffectiveTypography("color", c, globalTypo);
+        const _clrTs = resolveTextStyle(_clrGs, c);
+        loadGoogleFont(_clrTs.fontFamily);
+        const _clrCSS = textStyleToCSS(_clrTs);
+        const clrDefault = String(c.defaultValue || "#46367F");
+        const [clrSelected, setClrSelected] = React.useState(clrDefault);
+        return (
+          <div className="flex flex-col gap-1.5">
+            <label dir="ltr" style={{ ..._clrCSS, fontWeight: _clrTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Choose Color")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _clrTs.fontWeight || 600 }}
+                placeholder="Choose Color"
+              />
+              {c.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            <div className="flex items-center gap-3">
+              {previewMode ? (
+                <>
+                  <input
+                    type="color"
+                    value={clrSelected}
+                    onChange={(e) => setClrSelected(e.target.value)}
+                    className="w-10 h-10 rounded-lg border-2 border-ds-haze cursor-pointer shrink-0 p-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <span style={{ ..._clrCSS, fontSize: "11px", color: "#3A3A3A" }}>
+                    {clrSelected}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div
+                    className="w-10 h-10 rounded-lg border-2 border-ds-haze cursor-pointer shrink-0"
+                    style={{ backgroundColor: clrDefault }}
+                  />
+                  <span style={{ ..._clrCSS, fontSize: "11px", color: "#3A3A3A" }}>
+                    {clrDefault}
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      /* ── Rich Text ── */
+      case "rich-text": {
+        const { defaults: _rtGs } = getEffectiveTypography("rich-text", c, globalTypo);
+        const _rtTs = resolveTextStyle(_rtGs, c);
+        loadGoogleFont(_rtTs.fontFamily);
+        const _rtCSS = textStyleToCSS(_rtTs);
+        const rtToolbar = String(c.toolbar || "bold,italic,underline,strikethrough,fontSize,lists,orderedLists,indent,outdent,alignLeft,alignCenter,alignRight,alignJustify,links,textColor,highlight");
+        const toolbarItems = rtToolbar.split(",").map(s => s.trim());
+        const rtPlaceholder = String(c.placeholder || "Enter rich text content…");
+        const rtEditorRef = React.useRef<HTMLDivElement>(null);
+        const [rtLinkUrl, setRtLinkUrl] = React.useState("");
+        const [rtShowLinkModal, setRtShowLinkModal] = React.useState(false);
+        const [rtShowSourceView, setRtShowSourceView] = React.useState(false);
+        const [rtSourceContent, setRtSourceContent] = React.useState("");
+        const [rtActiveFormats, setRtActiveFormats] = React.useState<Record<string, boolean>>({});
+
+        // ── Format detection ──
+        const rtUpdateFormats = React.useCallback(() => {
+          if (!rtEditorRef.current) return;
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0) return;
+          const node = sel.anchorNode;
+          if (!node) return;
+          const el = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
+          if (!el || !rtEditorRef.current.contains(el)) { setRtActiveFormats({}); return; }
+          setRtActiveFormats({
+            bold: document.queryCommandState("bold"),
+            italic: document.queryCommandState("italic"),
+            underline: document.queryCommandState("underline"),
+            strikeThrough: document.queryCommandState("strikeThrough"),
+            insertUnorderedList: document.queryCommandState("insertUnorderedList"),
+            insertOrderedList: document.queryCommandState("insertOrderedList"),
+            justifyLeft: document.queryCommandState("justifyLeft"),
+            justifyCenter: document.queryCommandState("justifyCenter"),
+            justifyRight: document.queryCommandState("justifyRight"),
+            justifyFull: document.queryCommandState("justifyFull"),
+          });
+        }, []);
+
+        // ── Toolbar actions ──
+        const rtExec = React.useCallback((cmd: string, val?: string) => {
+          document.execCommand(cmd, false, val);
+          rtEditorRef.current?.focus();
+          rtUpdateFormats();
+        }, [rtUpdateFormats]);
+
+        const rtHandleBold = React.useCallback(() => rtExec("bold"), [rtExec]);
+        const rtHandleItalic = React.useCallback(() => rtExec("italic"), [rtExec]);
+        const rtHandleUnderline = React.useCallback(() => rtExec("underline"), [rtExec]);
+        const rtHandleStrike = React.useCallback(() => rtExec("strikeThrough"), [rtExec]);
+        const rtHandleUnorderedList = React.useCallback(() => rtExec("insertUnorderedList"), [rtExec]);
+        const rtHandleOrderedList = React.useCallback(() => rtExec("insertOrderedList"), [rtExec]);
+        const rtHandleAlignLeft = React.useCallback(() => rtExec("justifyLeft"), [rtExec]);
+        const rtHandleAlignCenter = React.useCallback(() => rtExec("justifyCenter"), [rtExec]);
+        const rtHandleAlignRight = React.useCallback(() => rtExec("justifyRight"), [rtExec]);
+        const rtHandleAlignJustify = React.useCallback(() => rtExec("justifyFull"), [rtExec]);
+        const rtHandleTextColor = React.useCallback((color: string) => {
+          document.execCommand("foreColor", false, color);
+          rtEditorRef.current?.focus();
+          rtUpdateFormats();
+        }, [rtUpdateFormats]);
+        const rtHandleHighlight = React.useCallback((color: string) => {
+          document.execCommand("hiliteColor", false, color);
+          rtEditorRef.current?.focus();
+          rtUpdateFormats();
+        }, [rtUpdateFormats]);
+        const rtHandleLink = React.useCallback(() => {
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const anchorNode = range.startContainer;
+            const parentEl = anchorNode.nodeType === 3 ? anchorNode.parentElement : anchorNode as HTMLElement;
+            const existingLink = parentEl?.closest("a");
+            if (existingLink) {
+              setRtLinkUrl(existingLink.getAttribute("href") || "https://");
+            } else {
+              setRtLinkUrl("https://");
+            }
+          } else {
+            setRtLinkUrl("https://");
+          }
+          setRtShowLinkModal(true);
+        }, []);
+        const rtHandleLinkConfirm = React.useCallback(() => {
+          if (rtLinkUrl.trim()) {
+            document.execCommand("createLink", false, rtLinkUrl.trim());
+          }
+          setRtShowLinkModal(false);
+          rtEditorRef.current?.focus();
+          rtUpdateFormats();
+        }, [rtLinkUrl, rtUpdateFormats]);
+        const rtHandleLinkRemove = React.useCallback(() => {
+          document.execCommand("unlink");
+          setRtShowLinkModal(false);
+          rtEditorRef.current?.focus();
+          rtUpdateFormats();
+        }, [rtUpdateFormats]);
+        const rtHandleUndo = React.useCallback(() => { document.execCommand("undo"); rtEditorRef.current?.focus(); rtUpdateFormats(); }, [rtUpdateFormats]);
+        const rtHandleRedo = React.useCallback(() => { document.execCommand("redo"); rtEditorRef.current?.focus(); rtUpdateFormats(); }, [rtUpdateFormats]);
+        const rtHandleSuperscript = React.useCallback(() => rtExec("superscript"), [rtExec]);
+        const rtHandleSubscript = React.useCallback(() => rtExec("subscript"), [rtExec]);
+        const rtHandleBlockquote = React.useCallback(() => { document.execCommand("formatBlock", false, "blockquote"); rtEditorRef.current?.focus(); rtUpdateFormats(); }, [rtUpdateFormats]);
+        const rtHandleCodeBlock = React.useCallback(() => { document.execCommand("formatBlock", false, "pre"); rtEditorRef.current?.focus(); rtUpdateFormats(); }, [rtUpdateFormats]);
+        const rtHandleHorizontalRule = React.useCallback(() => { document.execCommand("insertHorizontalRule"); rtEditorRef.current?.focus(); rtUpdateFormats(); }, [rtUpdateFormats]);
+        const rtHandleIndent = React.useCallback(() => rtExec("indent"), [rtExec]);
+        const rtHandleOutdent = React.useCallback(() => rtExec("outdent"), [rtExec]);
+
+        // ── Source view toggle ──
+        const rtToggleSourceView = React.useCallback(() => {
+          if (rtShowSourceView) {
+            // Switching back from source to rich text
+            if (rtEditorRef.current) rtEditorRef.current.innerHTML = rtSourceContent;
+            setRtShowSourceView(false);
+          } else {
+            // Switching to source view
+            if (rtEditorRef.current) setRtSourceContent(rtEditorRef.current.innerHTML);
+            setRtShowSourceView(true);
+          }
+        }, [rtShowSourceView, rtSourceContent]);
+
+        // ── Keyboard shortcuts ──
+        const rtHandleKeyDown = React.useCallback((e: React.KeyboardEvent) => {
+          if (e.ctrlKey || e.metaKey) {
+            switch (e.key.toLowerCase()) {
+              case "b": e.preventDefault(); rtHandleBold(); break;
+              case "i": e.preventDefault(); rtHandleItalic(); break;
+              case "u": e.preventDefault(); rtHandleUnderline(); break;
+              case "k": e.preventDefault(); rtHandleLink(); break;
+              case "z": if (e.shiftKey) { e.preventDefault(); rtHandleRedo(); } else { e.preventDefault(); rtHandleUndo(); } break;
+            }
+          }
+        }, [rtHandleBold, rtHandleItalic, rtHandleUnderline, rtHandleLink, rtHandleUndo, rtHandleRedo]);
+
+        // ── Toolbar button helper ──
+        type TbBtn = { key: string; label: string; title: string; action: () => void; active?: boolean; separator?: boolean };
+        const rtButtons: TbBtn[] = [
+          { key: "undo", label: "↶", title: "Undo (Ctrl+Z)", action: rtHandleUndo },
+          { key: "redo", label: "↷", title: "Redo (Ctrl+Shift+Z)", action: rtHandleRedo },
+          { key: "sep-format", label: "", title: "", action: () => {}, separator: true },
+          { key: "fontSize", label: "12px ▾", title: "Font Size", action: () => {} },
+          { key: "bold", label: "B", title: "Bold (Ctrl+B)", action: rtHandleBold, active: rtActiveFormats.bold },
+          { key: "italic", label: "I", title: "Italic (Ctrl+I)", action: rtHandleItalic, active: rtActiveFormats.italic },
+          { key: "underline", label: "U", title: "Underline (Ctrl+U)", action: rtHandleUnderline, active: rtActiveFormats.underline },
+          { key: "strikethrough", label: "S̶", title: "Strikethrough", action: rtHandleStrike, active: rtActiveFormats.strikeThrough },
+          { key: "superscript", label: "x²", title: "Superscript", action: rtHandleSuperscript },
+          { key: "subscript", label: "x₂", title: "Subscript", action: rtHandleSubscript },
+          { key: "sep-list", label: "", title: "", action: () => {}, separator: true },
+          { key: "lists", label: "•", title: "Bullet List", action: rtHandleUnorderedList, active: rtActiveFormats.insertUnorderedList },
+          { key: "orderedLists", label: "1.", title: "Numbered List", action: rtHandleOrderedList, active: rtActiveFormats.insertOrderedList },
+          { key: "indent", label: "→", title: "Indent", action: rtHandleIndent },
+          { key: "outdent", label: "←", title: "Outdent", action: rtHandleOutdent },
+          { key: "sep-align", label: "", title: "", action: () => {}, separator: true },
+          { key: "alignLeft", label: "≡←", title: "Align Left", action: rtHandleAlignLeft, active: rtActiveFormats.justifyLeft },
+          { key: "alignCenter", label: "≡≡", title: "Align Center", action: rtHandleAlignCenter, active: rtActiveFormats.justifyCenter },
+          { key: "alignRight", label: "→≡", title: "Align Right", action: rtHandleAlignRight, active: rtActiveFormats.justifyRight },
+          { key: "alignJustify", label: "≡≡≡", title: "Justify", action: rtHandleAlignJustify, active: rtActiveFormats.justifyFull },
+          { key: "sep-insert", label: "", title: "", action: () => {}, separator: true },
+          { key: "links", label: "🔗", title: "Insert Link (Ctrl+K)", action: rtHandleLink },
+          { key: "blockquote", label: "❝", title: "Block Quote", action: rtHandleBlockquote },
+          { key: "codeBlock", label: "</>", title: "Code Block", action: rtHandleCodeBlock },
+          { key: "horizontalRule", label: "—", title: "Horizontal Rule", action: rtHandleHorizontalRule },
+          { key: "sep-colors", label: "", title: "", action: () => {}, separator: true },
+          { key: "textColor", label: "A🎨", title: "Text Color", action: () => {} },
+          { key: "highlight", label: "🖍", title: "Highlight", action: () => {} },
+          { key: "sep-view", label: "", title: "", action: () => {}, separator: true },
+          { key: "sourceView", label: "<>", title: "HTML Source", action: rtToggleSourceView },
+        ];
+
+        // ── Heading dropdown state ──
+        const [rtShowFontSizeMenu, setRtShowFontSizeMenu] = React.useState(false);
+        const [rtShowTextColorPicker, setRtShowTextColorPicker] = React.useState(false);
+        const [rtShowHighlightPicker, setRtShowHighlightPicker] = React.useState(false);
+        const [rtCurrentFontSize, setRtCurrentFontSize] = React.useState("12");
+
+        // ── Font size handler ──
+        const rtHandleFontSize = React.useCallback((size: string) => {
+          document.execCommand("fontSize", false, "7"); // Use size 7 as temp, then replace
+          if (rtEditorRef.current) {
+            const fontElements = rtEditorRef.current.querySelectorAll('font[size="7"]');
+            fontElements.forEach((el) => {
+              const span = document.createElement("span");
+              span.style.fontSize = size;
+              span.innerHTML = el.innerHTML;
+              el.parentNode?.replaceChild(span, el);
+            });
+          }
+          setRtCurrentFontSize(size.replace("px", ""));
+          setRtShowFontSizeMenu(false);
+          rtEditorRef.current?.focus();
+          rtUpdateFormats();
+        }, [rtUpdateFormats]);
+
+        const rtFontSizes = ["8","9","10","11","12","13","14","16","18","20","22","24","28","32","36","42","48","56","64","72"];
+
+        const rtPresetColors = ["#000000","#434343","#666666","#999999","#b7b7b7","#cccccc","#d9d9d9","#efefef","#f3f3f3","#ffffff","#980000","#ff0000","#ff9900","#ffff00","#00ff00","#00ffff","#4a86e8","#0000ff","#9900ff","#ff00ff","#e6b8af","#f4cccc","#fce5cd","#fff2cc","#d9ead3","#d0e0e3","#c9daf8","#cfe2f3","#d9d2e9","#ead1dc","#dd7e6b","#ea9999","#f9cb9c","#ffe599","#b6d7a8","#a2c4c9","#a4c2f4","#9fc5e8","#b4a7d6","#d5a6bd"];
+
+        return (
+          <div className="flex flex-col gap-1.5">
+            <label dir="ltr" style={{ ..._rtCSS, fontWeight: _rtTs.fontWeight || 600 }}>
+              <InlineEditable
+                value={String(c.label || "Content")}
+                onChange={(v) => onUpdate({ ...c, label: v })}
+                style={{ fontWeight: _rtTs.fontWeight || 600 }}
+                placeholder="Content"
+              />
+              {c.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            <div className="border border-ds-haze rounded-md overflow-hidden">
+              {/* Toolbar */}
+              <div className="flex items-center flex-wrap gap-0.5 px-1.5 py-1 bg-gray-50 border-b border-ds-haze" onMouseDown={(e) => e.preventDefault()}>
+                {rtButtons.filter(b => toolbarItems.includes(b.key) || b.separator || b.key === "undo" || b.key === "redo" || b.key === "sourceView").map((btn) => {
+                  if (btn.separator) return <div key={btn.key} className="w-px h-4 bg-ds-haze mx-0.5" />;
+                  // ── Font size dropdown ──
+                  if (btn.key === "fontSize") {
+                    if (!toolbarItems.includes("fontSize")) return null;
+                    return (
+                      <div key={btn.key} className="relative">
+                        <button type="button" onClick={() => setRtShowFontSizeMenu(!rtShowFontSizeMenu)} className={`font-['Poppins',sans-serif] text-[11px] text-ds-dark-gray px-1.5 py-0.5 rounded hover:bg-ds-purple-light ${previewMode ? "cursor-pointer" : "cursor-default"}`}>{rtCurrentFontSize}px ▾</button>
+                        {rtShowFontSizeMenu && previewMode && (
+                          <div className="absolute top-full left-0 z-50 bg-white border border-ds-haze rounded shadow-lg py-1 max-h-[200px] overflow-y-auto min-w-[80px]">
+                            {rtFontSizes.map((size) => (
+                              <button key={size} type="button" onClick={() => rtHandleFontSize(size + "px")} className={`block w-full text-left px-3 py-0.5 text-[11px] hover:bg-ds-purple-light ${rtCurrentFontSize === size ? "bg-ds-purple-light font-bold" : ""}`}>{size}px</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  // ── Text color picker ──
+                  if (btn.key === "textColor") {
+                    if (!toolbarItems.includes("textColor")) return null;
+                    return (
+                      <div key={btn.key} className="relative">
+                        <button type="button" onClick={() => setRtShowTextColorPicker(!rtShowTextColorPicker)} className="font-['Poppins',sans-serif] text-[11px] text-ds-dark-gray px-1.5 py-0.5 rounded hover:bg-ds-purple-light" title="Text Color">A🎨</button>
+                        {rtShowTextColorPicker && previewMode && (
+                          <div className="absolute top-full left-0 z-50 bg-white border border-ds-haze rounded shadow-lg p-2 w-[200px]">
+                            <div className="grid grid-cols-10 gap-0.5">
+                              {rtPresetColors.map((color) => (
+                                <button key={color} type="button" onClick={() => { rtHandleTextColor(color); setRtShowTextColorPicker(false); }} className="w-4 h-4 rounded-sm border border-gray-200 hover:scale-125 transition-transform" style={{ backgroundColor: color }} title={color} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  // ── Highlight picker ──
+                  if (btn.key === "highlight") {
+                    if (!toolbarItems.includes("highlight")) return null;
+                    return (
+                      <div key={btn.key} className="relative">
+                        <button type="button" onClick={() => setRtShowHighlightPicker(!rtShowHighlightPicker)} className="font-['Poppins',sans-serif] text-[11px] text-ds-dark-gray px-1.5 py-0.5 rounded hover:bg-ds-purple-light" title="Highlight">🖍</button>
+                        {rtShowHighlightPicker && previewMode && (
+                          <div className="absolute top-full left-0 z-50 bg-white border border-ds-haze rounded shadow-lg p-2 w-[200px]">
+                            <div className="grid grid-cols-10 gap-0.5">
+                              {rtPresetColors.map((color) => (
+                                <button key={color} type="button" onClick={() => { rtHandleHighlight(color); setRtShowHighlightPicker(false); }} className="w-4 h-4 rounded-sm border border-gray-200 hover:scale-125 transition-transform" style={{ backgroundColor: color }} title={color} />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  // ── Regular toolbar button ──
+                  const isActive = btn.active;
+                  const isAlwaysShown = btn.key === "undo" || btn.key === "redo" || btn.key === "sourceView";
+                  if (!toolbarItems.includes(btn.key) && !isAlwaysShown) return null;
+                  return (
+                    <button
+                      key={btn.key}
+                      type="button"
+                      onClick={previewMode ? btn.action : undefined}
+                      title={btn.title}
+                      className={`font-['Poppins',sans-serif] text-[11px] px-1.5 py-0.5 rounded transition-colors ${isActive ? "bg-ds-purple-light text-ds-purple font-bold" : "text-ds-dark-gray"} ${previewMode ? "hover:bg-ds-purple-light cursor-pointer" : "cursor-default opacity-50"}`}
+                    >{btn.label}</button>
+                  );
+                })}
+              </div>
+              {/* Link modal */}
+              {rtShowLinkModal && previewMode && (
+                <div className="absolute z-50 bg-white border border-ds-haze rounded shadow-lg p-3 flex flex-col gap-2" style={{ marginLeft: 8, marginTop: -4 }}>
+                  <span className="font-['Poppins',sans-serif] text-[11px] font-semibold text-ds-dark-gray">Insert Link</span>
+                  <input
+                    type="url"
+                    value={rtLinkUrl}
+                    onChange={(e) => setRtLinkUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") rtHandleLinkConfirm(); if (e.key === "Escape") setRtShowLinkModal(false); }}
+                    className="border border-ds-haze rounded px-2 py-1 text-[12px] w-[280px] outline-none focus:ring-1 focus:ring-ds-purple/30"
+                    placeholder="https://example.com"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <button type="button" onClick={rtHandleLinkConfirm} className="px-3 py-1 bg-ds-purple text-white rounded text-[11px] hover:bg-ds-purple-dark">Apply</button>
+                    <button type="button" onClick={rtHandleLinkRemove} className="px-3 py-1 bg-gray-200 text-ds-dark-gray rounded text-[11px] hover:bg-gray-300">Remove Link</button>
+                    <button type="button" onClick={() => setRtShowLinkModal(false)} className="px-3 py-1 text-ds-dark-gray text-[11px] hover:bg-gray-100">Cancel</button>
+                  </div>
+                </div>
+              )}
+              {/* Content area */}
+              {previewMode ? (
+                rtShowSourceView ? (
+                  <textarea
+                    value={rtSourceContent}
+                    onChange={(e) => setRtSourceContent(e.target.value)}
+                    className="px-3 py-2 min-h-[120px] text-[11px] font-mono text-ds-dark-gray outline-none focus:ring-1 focus:ring-ds-purple/30 bg-gray-50 w-full resize-y"
+                    style={{ fontFamily: "monospace" }}
+                  />
+                ) : (
+                  <div
+                    ref={rtEditorRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    dir="ltr"
+                    className="px-3 py-2 min-h-[80px] text-[12px] text-ds-dark-gray outline-none focus:ring-1 focus:ring-ds-purple/30 [&:empty]:before:content-[attr(data-placeholder)] [&:empty]:before:text-ds-light-gray [&:empty]:before:italic"
+                    style={{ fontFamily: _rtCSS.fontFamily }}
+                    onClick={(e) => { e.stopPropagation(); rtUpdateFormats(); }}
+                    onKeyUp={rtUpdateFormats}
+                    onMouseUp={rtUpdateFormats}
+                    onKeyDown={rtHandleKeyDown}
+                    data-placeholder={rtPlaceholder}
+                  />
+                )
+              ) : (
+                <div className="px-3 py-2 min-h-[60px] text-[12px] text-ds-light-gray italic" style={{ fontFamily: _rtCSS.fontFamily }}>
+                  {rtPlaceholder}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -2670,6 +3745,8 @@ function CanvasItem({
     opacity:   Number(c.opacity ?? 100) / 100,
     zIndex:    isContainerWidget && c.zIndex !== undefined && c.zIndex !== "" ? Number(c.zIndex) : undefined,
     position:  isContainerWidget && c.zIndex !== undefined && c.zIndex !== "" ? "relative" : undefined,
+    display:   "flex",
+    flexDirection: "column",
   };
 
   const contentStyle: React.CSSProperties = isContainerWidget
@@ -2677,6 +3754,10 @@ function CanvasItem({
     : {
         ...paddingStyle,
         backgroundColor: c.bgColor ? String(c.bgColor) : "transparent",
+        flex: "1 1 auto",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
       };
 
   return (
@@ -2754,6 +3835,51 @@ function CanvasItem({
             <path d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1" stroke="currentColor" strokeWidth="2" />
           </svg>
         </button>
+        {/* Copy config button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopyConfig?.();
+          }}
+          className={`p-0.5 rounded transition-colors cursor-pointer ${
+            hasCopiedConfig === element.type
+              ? isSelected
+                ? "text-ds-teal bg-white hover:bg-white/90 shadow-sm"
+                : "text-ds-teal bg-ds-teal/20 hover:bg-ds-teal/30"
+              : isSelected
+                ? "text-white/60 hover:text-white hover:bg-white/10"
+                : "text-ds-purple/40"
+          }`}
+          title="Copy properties"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5">
+            <rect x="3" y="6" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+            <rect x="8" y="3" width="12" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+            <path d="M14 9v6M11 12h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+        {/* Paste config button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onPasteConfig?.();
+          }}
+          className={`p-0.5 rounded transition-colors cursor-pointer ${
+            hasCopiedConfig === element.type
+              ? isSelected
+                ? "text-ds-teal bg-white hover:bg-white/90 shadow-sm"
+                : "text-ds-teal bg-ds-teal/20 hover:bg-ds-teal/30"
+              : isSelected
+                ? "text-white/60 hover:text-white hover:bg-white/10"
+                : "text-ds-purple/40"
+          }`}
+          title="Paste properties"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="w-3.5 h-3.5">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" stroke="currentColor" strokeWidth="2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        </button>
         {/* Delete button */}
         <button
           onClick={(e) => {
@@ -2806,6 +3932,10 @@ function ContainerCell({
   onDelete,
   onDuplicate,
   onUpdateConfig,
+  onImagePick,
+  onCopyConfig,
+  onPasteConfig,
+  hasCopiedConfig,
   onDropInCell,
   onMoveInCell,
   onCrossMove,
@@ -2830,9 +3960,11 @@ function ContainerCell({
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   onUpdateConfig: (id: string, config: Record<string, string | number | boolean>) => void;
+  onImagePick?: (elementId: string) => void;
   onDropInCell: (widget: PaletteWidget, containerId: string, rowIdx: number, colIdx: number, insertIndex?: number) => void;
   onMoveInCell: (containerId: string, rowIdx: number, colIdx: number, dragIdx: number, hoverIdx: number) => void;
   onCrossMove?: (elementId: string, targetContainerId: string, targetRowIdx: number, targetColIdx: number, insertIndex?: number) => void;
+  hasCopiedConfig?: WidgetType | false;
 }) {
   const previewMode = React.useContext(PreviewModeContext);
   const [{ isOver, canDrop }, drop] = useDrop<
@@ -2961,6 +4093,10 @@ function ContainerCell({
                 onDropInCell={onDropInCell}
                 onMoveInCell={onMoveInCell}
                 onUpdateConfig={onUpdateConfig}
+                onImagePick={onImagePick}
+                onCopyConfig={onCopyConfig}
+                onPasteConfig={onPasteConfig}
+                hasCopiedConfig={hasCopiedConfig}
                 onCrossMove={onCrossMove}
                 isNested
               />
@@ -3285,6 +4421,10 @@ function Canvas({
   onDrop,
   onMove,
   onUpdateConfig,
+  onImagePick,
+  onCopyConfig,
+  onPasteConfig,
+  hasCopiedConfig,
   onDropInCell,
   onMoveInCell,
   onCrossMove,
@@ -3304,6 +4444,7 @@ function Canvas({
   onDrop: (widget: PaletteWidget, index?: number) => void;
   onMove: (dragIndex: number, hoverIndex: number) => void;
   onUpdateConfig: (id: string, config: Record<string, string | number | boolean>) => void;
+  onImagePick?: (elementId: string) => void;
   onDropInCell: (widget: PaletteWidget, containerId: string, rowIdx: number, colIdx: number, insertIndex?: number) => void;
   onMoveInCell: (containerId: string, rowIdx: number, colIdx: number, dragIdx: number, hoverIdx: number) => void;
   onCrossMove?: (elementId: string, targetContainerId: string, targetRowIdx: number, targetColIdx: number, insertIndex?: number) => void;
@@ -3313,6 +4454,7 @@ function Canvas({
   pageWidth?: number;
   pageHeight?: number;
   pageOrientation?: "portrait" | "landscape";
+  hasCopiedConfig?: WidgetType | false;
 }) {
   const previewMode = React.useContext(PreviewModeContext);
 
@@ -3523,6 +4665,10 @@ function Canvas({
                   onDropInCell={onDropInCell}
                   onMoveInCell={onMoveInCell}
                   onUpdateConfig={onUpdateConfig}
+                  onImagePick={onImagePick}
+                  onCopyConfig={onCopyConfig}
+                  onPasteConfig={onPasteConfig}
+                  hasCopiedConfig={hasCopiedConfig}
                   onCrossMove={onCrossMove}
                 />
                 {/* Insertion indicator after each element */}
@@ -5929,33 +7075,206 @@ function PropertiesView({
       {selectedElement.type === "text-box" && (
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropVerticalAlign
+            label="Vertical Alignment"
+            value={String(config.verticalAlign || "top")}
+            onChange={(v) => updateField("verticalAlign", v)}
+          />
           <PropInput label="Placeholder" value={String(config.placeholder || "")} onChange={(v) => updateField("placeholder", v)} />
+          <PropSelect
+            label="Input Format"
+            value={String(config.inputFormat || "text")}
+            onChange={(v) => updateField("inputFormat", v)}
+            options={[
+              { value: "text", label: "Plain Text" },
+              { value: "email", label: "Email" },
+              { value: "tel", label: "Phone" },
+              { value: "url", label: "URL" },
+              { value: "password", label: "Password" },
+              { value: "search", label: "Search" },
+            ]}
+          />
+          <PropInput label="Max Length" value={String(config.maxLength ?? "")} onChange={(v) => updateField("maxLength", v)} />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+          <PropInput label="Error Message" value={String(config.errorMessage || "")} onChange={(v) => updateField("errorMessage", v)} placeholder="Custom error message…" />
+          <PropSelect
+            label="Input Mask"
+            value={String(config.maskPattern || "none")}
+            onChange={(v) => updateField("maskPattern", v)}
+            options={[
+              { value: "none", label: "No Mask" },
+              { value: "phone-us", label: "Phone (US)" },
+              { value: "phone-intl", label: "Phone (Intl)" },
+              { value: "ssn", label: "SSN" },
+              { value: "zip", label: "ZIP Code" },
+              { value: "date", label: "Date (MM/DD/YYYY)" },
+              { value: "currency", label: "Currency" },
+              { value: "percentage", label: "Percentage" },
+            ]}
+          />
         </div>
       )}
 
       {/* ── Image ── */}
       {selectedElement.type === "image" && (
-        <PropSelect
-          label="Image"
-          value={String(config.imageId || "")}
-          onChange={(v) => {
-            const img = images.find((i) => i.id === v);
-            updateField("imageId", v);
-            if (img) updateField("imageName", img.name);
-          }}
-          options={[
-            { value: "", label: "Select image..." },
-            ...images.map((i) => ({ value: i.id, label: i.name })),
-          ]}
-        />
+        <div className="contents">
+          <PropSelect
+            label="Image Source"
+            value={String(config.srcUrl || "").trim() ? "url" : "database"}
+            onChange={(v) => {
+              if (v === "database") {
+                updateField("srcUrl", "");
+              } else {
+                updateField("imageId", "");
+                updateField("imageName", "");
+              }
+            }}
+            options={[
+              { value: "database", label: "Database Image" },
+              { value: "url", label: "External URL" },
+            ]}
+          />
+          {String(config.srcUrl || "").trim() ? (
+            <PropInput label="Image URL" value={String(config.srcUrl || "")} onChange={(v) => updateField("srcUrl", v)} />
+          ) : (
+            <PropSelect
+              label="Image"
+              value={String(config.imageId || "")}
+              onChange={(v) => {
+                const img = images.find((i) => i.id === v);
+                updateField("imageId", v);
+                if (img) updateField("imageName", img.name);
+              }}
+              options={[{ value: "", label: "Select image..." }, ...images.map((i) => ({ value: i.id, label: i.name }))]}
+            />
+          )}
+          <PropInput label="Alt Text" value={String(config.alt || "")} onChange={(v) => updateField("alt", v)} />
+          <PropSelect
+            label="Object Fit"
+            value={String(config.objectFit || "contain")}
+            onChange={(v) => updateField("objectFit", v)}
+            options={[
+              { value: "contain", label: "Contain" },
+              { value: "cover", label: "Cover" },
+              { value: "fill", label: "Fill" },
+              { value: "scale-down", label: "Scale Down" },
+              { value: "none", label: "None" },
+            ]}
+          />
+          <PropInput label="Width (px or %)" value={String(config.width || "")} onChange={(v) => updateField("width", v)} />
+          <PropInput label="Height (px or %)" value={String(config.height || "")} onChange={(v) => updateField("height", v)} />
+          <PropInput label="Border Radius (px)" value={String(config.borderRadius || "")} onChange={(v) => updateField("borderRadius", v)} />
+          <PropInput label="Border Width (px)" value={String(config.borderWidth || "")} onChange={(v) => updateField("borderWidth", v)} />
+          <PropInput label="Border Color" value={String(config.borderColor || "")} onChange={(v) => updateField("borderColor", v)} />
+          <PropSelect
+            label="Border Style"
+            value={String(config.borderStyle || "solid")}
+            onChange={(v) => updateField("borderStyle", v)}
+            options={[
+              { value: "none", label: "None" },
+              { value: "solid", label: "Solid" },
+              { value: "dashed", label: "Dashed" },
+              { value: "dotted", label: "Dotted" },
+            ]}
+          />
+          <PropSelect
+            label="Box Shadow"
+            value={String(config.boxShadow || "none")}
+            onChange={(v) => updateField("boxShadow", v)}
+            options={[
+              { value: "none", label: "None" },
+              { value: "0 1px 3px rgba(0,0,0,0.12)", label: "Small" },
+              { value: "0 4px 6px rgba(0,0,0,0.1)", label: "Medium" },
+              { value: "0 10px 15px rgba(0,0,0,0.1)", label: "Large" },
+              { value: "0 20px 25px rgba(0,0,0,0.15)", label: "Extra Large" },
+            ]}
+          />
+          <PropInput label="Padding Top (px)" value={String(config.paddingTop || "")} onChange={(v) => updateField("paddingTop", v)} />
+          <PropInput label="Padding Right (px)" value={String(config.paddingRight || "")} onChange={(v) => updateField("paddingRight", v)} />
+          <PropInput label="Padding Bottom (px)" value={String(config.paddingBottom || "")} onChange={(v) => updateField("paddingBottom", v)} />
+          <PropInput label="Padding Left (px)" value={String(config.paddingLeft || "")} onChange={(v) => updateField("paddingLeft", v)} />
+          <PropInput label="Margin Top (px)" value={String(config.marginTop || "")} onChange={(v) => updateField("marginTop", v)} />
+          <PropInput label="Margin Right (px)" value={String(config.marginRight || "")} onChange={(v) => updateField("marginRight", v)} />
+          <PropInput label="Margin Bottom (px)" value={String(config.marginBottom || "")} onChange={(v) => updateField("marginBottom", v)} />
+          <PropInput label="Margin Left (px)" value={String(config.marginLeft || "")} onChange={(v) => updateField("marginLeft", v)} />
+          <PropInput label="Background Color" value={String(config.backgroundColor || "")} onChange={(v) => updateField("backgroundColor", v)} />
+          <PropSelect
+            label="Alignment"
+            value={String(config.alignment || "center")}
+            onChange={(v) => updateField("alignment", v)}
+            options={[
+              { value: "left", label: "Left" },
+              { value: "center", label: "Center" },
+              { value: "right", label: "Right" },
+              { value: "stretch", label: "Stretch" },
+            ]}
+          />
+          <PropSelect
+            label="Object Position"
+            value={String(config.objectPosition || "center")}
+            onChange={(v) => updateField("objectPosition", v)}
+            options={[
+              { value: "top", label: "Top" },
+              { value: "center", label: "Center" },
+              { value: "bottom", label: "Bottom" },
+              { value: "left", label: "Left" },
+              { value: "right", label: "Right" },
+              { value: "top left", label: "Top Left" },
+              { value: "top right", label: "Top Right" },
+              { value: "bottom left", label: "Bottom Left" },
+              { value: "bottom right", label: "Bottom Right" },
+            ]}
+          />
+          <PropInput label="Opacity (%)" value={String(config.opacity || "100")} onChange={(v) => updateField("opacity", Math.max(0, Math.min(100, Number(v) || 100)).toString())} />
+          <PropCheckbox label="Grayscale" checked={!!config.grayscale} onChange={(v) => updateField("grayscale", v)} />
+          <PropInput label="Blur (px)" value={String(config.blur || "")} onChange={(v) => updateField("blur", v)} />
+          <PropInput label="Brightness (%)" value={String(config.brightness || "100")} onChange={(v) => updateField("brightness", v)} />
+          <PropInput label="Contrast (%)" value={String(config.contrast || "100")} onChange={(v) => updateField("contrast", v)} />
+          <PropInput label="Link URL" value={String(config.linkUrl || "")} onChange={(v) => updateField("linkUrl", v)} />
+          <PropSelect
+            label="Link Target"
+            value={String(config.linkTarget || "_self")}
+            onChange={(v) => updateField("linkTarget", v)}
+            options={[
+              { value: "_self", label: "Same Tab" },
+              { value: "_blank", label: "New Tab" },
+            ]}
+          />
+          <PropInput label="Caption" value={String(config.caption || "")} onChange={(v) => updateField("caption", v)} />
+          <PropCheckbox label="Hover Scale" checked={!!config.hoverScale} onChange={(v) => updateField("hoverScale", v)} />
+          <PropInput label="Hover Opacity (%)" value={String(config.hoverOpacity || "")} onChange={(v) => updateField("hoverOpacity", v)} />
+          <PropSelect
+            label="Hover Shadow"
+            value={String(config.hoverShadow || "none")}
+            onChange={(v) => updateField("hoverShadow", v)}
+            options={[
+              { value: "none", label: "None" },
+              { value: "0 1px 3px rgba(0,0,0,0.12)", label: "Small" },
+              { value: "0 4px 6px rgba(0,0,0,0.1)", label: "Medium" },
+              { value: "0 10px 15px rgba(0,0,0,0.1)", label: "Large" },
+            ]}
+          />
+          <PropSelect
+            label="Loading"
+            value={String(config.loading || "eager")}
+            onChange={(v) => updateField("loading", v)}
+            options={[
+              { value: "eager", label: "Eager" },
+              { value: "lazy", label: "Lazy" },
+            ]}
+          />
+        </div>
       )}
 
       {/* ── Attachment ── */}
       {selectedElement.type === "attachment" && (
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropInput label="Accepted File Types" value={String(config.accept || "*")} onChange={(v) => updateField("accept", v)} placeholder="e.g. .pdf,.doc,.jpg" />
+          <PropInput label="Max File Size (MB)" value={String(config.maxFileSize ?? "")} onChange={(v) => updateField("maxFileSize", v)} />
+          <PropCheckbox label="Allow Multiple Files" checked={!!config.multiple} onChange={(v) => updateField("multiple", v)} />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+          <PropInput label="Error Message" value={String(config.errorMessage || "")} onChange={(v) => updateField("errorMessage", v)} placeholder="Custom error message…" />
         </div>
       )}
 
@@ -5974,6 +7293,15 @@ function PropertiesView({
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
           <PropInput label="Options (comma or | separated)" value={String(config.options || "")} onChange={(v) => updateField("options", v)} />
+          <PropSelect
+            label="Layout"
+            value={String(config.layout || "vertical")}
+            onChange={(v) => updateField("layout", v)}
+            options={[
+              { value: "vertical", label: "Vertical" },
+              { value: "horizontal", label: "Horizontal" },
+            ]}
+          />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
         </div>
       )}
@@ -5991,7 +7319,20 @@ function PropertiesView({
       {selectedElement.type === "calendar" && (
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropSelect
+            label="Date Type"
+            value={String(config.dateType || "date")}
+            onChange={(v) => updateField("dateType", v)}
+            options={[
+              { value: "date", label: "Date (MM/DD/YYYY)" },
+              { value: "time", label: "Time" },
+              { value: "datetime-local", label: "Date & Time" },
+              { value: "month", label: "Month" },
+              { value: "week", label: "Week" },
+            ]}
+          />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+          <PropInput label="Error Message" value={String(config.errorMessage || "")} onChange={(v) => updateField("errorMessage", v)} placeholder="Custom error message…" />
         </div>
       )}
 
@@ -6062,7 +7403,10 @@ function PropertiesView({
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
           <PropInput label="Placeholder" value={String(config.placeholder || "")} onChange={(v) => updateField("placeholder", v)} />
           <PropInput label="Rows" value={String(config.rows || "4")} onChange={(v) => updateField("rows", Math.max(2, Number(v) || 4))} />
+          <PropInput label="Max Length" value={String(config.maxLength ?? "")} onChange={(v) => updateField("maxLength", v)} />
+          <PropCheckbox label="Show Character Count" checked={!!config.showCharCount} onChange={(v) => updateField("showCharCount", v)} />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+          <PropInput label="Error Message" value={String(config.errorMessage || "")} onChange={(v) => updateField("errorMessage", v)} placeholder="Custom error message…" />
         </div>
       )}
 
@@ -6071,10 +7415,49 @@ function PropertiesView({
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
           <PropInput label="Placeholder" value={String(config.placeholder || "")} onChange={(v) => updateField("placeholder", v)} />
+          <PropSelect
+            label="Number Format"
+            value={String(config.numberFormat || "plain")}
+            onChange={(v) => updateField("numberFormat", v)}
+            options={[
+              { value: "plain", label: "Plain Number" },
+              { value: "currency", label: "Currency" },
+              { value: "percentage", label: "Percentage" },
+            ]}
+          />
+          {String(config.numberFormat || "plain") === "currency" && (
+            <PropSelect
+              label="Currency Symbol"
+              value={String(config.currencySymbol || "$")}
+              onChange={(v) => updateField("currencySymbol", v)}
+              options={[
+                { value: "$", label: "$ (USD)" },
+                { value: "€", label: "€ (EUR)" },
+                { value: "£", label: "£ (GBP)" },
+                { value: "¥", label: "¥ (JPY)" },
+                { value: "₹", label: "₹ (INR)" },
+              ]}
+            />
+          )}
           <PropInput label="Min" value={String(config.min ?? "0")} onChange={(v) => updateField("min", Number(v) || 0)} />
           <PropInput label="Max" value={String(config.max ?? "9999")} onChange={(v) => updateField("max", Number(v) || 9999)} />
           <PropInput label="Step" value={String(config.step ?? "1")} onChange={(v) => updateField("step", Number(v) || 1)} />
+          <PropSelect
+            label="Decimal Places"
+            value={String(config.decimalPlaces ?? "0")}
+            onChange={(v) => updateField("decimalPlaces", v)}
+            options={[
+              { value: "0", label: "0 (Whole numbers)" },
+              { value: "1", label: "1" },
+              { value: "2", label: "2" },
+              { value: "3", label: "3" },
+              { value: "4", label: "4" },
+            ]}
+          />
+          <PropInput label="Unit Prefix" value={String(config.unitPrefix || "")} onChange={(v) => updateField("unitPrefix", v)} placeholder="e.g. $, €" />
+          <PropInput label="Unit Suffix" value={String(config.unitSuffix || "")} onChange={(v) => updateField("unitSuffix", v)} placeholder="e.g. kg, mi" />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+          <PropInput label="Error Message" value={String(config.errorMessage || "")} onChange={(v) => updateField("errorMessage", v)} placeholder="Custom error message…" />
         </div>
       )}
 
@@ -6141,6 +7524,63 @@ function PropertiesView({
         <div className="contents">
           <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
           <PropInput label="Hint text" value={String(config.hint || "")} onChange={(v) => updateField("hint", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+          <PropColorPicker label="Pen Color" value={String(config.penColor || "#000000")} onChange={(v) => updateField("penColor", v)} />
+          <PropSelect
+            label="Pen Thickness"
+            value={String(config.penThickness || "2")}
+            onChange={(v) => updateField("penThickness", v)}
+            options={[
+              { value: "1", label: "Thin (1px)" },
+              { value: "2", label: "Normal (2px)" },
+              { value: "3", label: "Thick (3px)" },
+              { value: "4", label: "Extra Thick (4px)" },
+            ]}
+          />
+          <PropCheckbox label="Show Clear Button" checked={config.showClear !== false} onChange={(v) => updateField("showClear", v)} />
+          <PropCheckbox label="Date Stamp" checked={!!config.dateStamp} onChange={(v) => updateField("dateStamp", v)} />
+        </div>
+      )}
+
+      {/* ── Range Slider ── */}
+      {selectedElement.type === "range" && (
+        <div className="contents">
+          <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropInput label="Min" value={String(config.min ?? "0")} onChange={(v) => updateField("min", Number(v) || 0)} />
+          <PropInput label="Max" value={String(config.max ?? "100")} onChange={(v) => updateField("max", Number(v) || 100)} />
+          <PropInput label="Step" value={String(config.step ?? "1")} onChange={(v) => updateField("step", Number(v) || 1)} />
+          <PropInput label="Default Value" value={String(config.defaultValue ?? "")} onChange={(v) => updateField("defaultValue", v)} />
+          <PropCheckbox label="Show Value" checked={config.showValue !== false} onChange={(v) => updateField("showValue", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+        </div>
+      )}
+
+      {/* ── Color Picker ── */}
+      {selectedElement.type === "color" && (
+        <div className="contents">
+          <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropColorPicker label="Default Color" value={String(config.defaultColor || "#46367F")} onChange={(v) => updateField("defaultColor", v)} />
+          <PropCheckbox label="Show Opacity" checked={!!config.showOpacity} onChange={(v) => updateField("showOpacity", v)} />
+          <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
+        </div>
+      )}
+
+      {/* ── Rich Text ── */}
+      {selectedElement.type === "rich-text" && (
+        <div className="contents">
+          <PropInput label="Label" value={String(config.label || "")} onChange={(v) => updateField("label", v)} />
+          <PropInput label="Placeholder" value={String(config.placeholder || "")} onChange={(v) => updateField("placeholder", v)} />
+          <PropSelect
+            label="Toolbar"
+            value={String(config.toolbar || "bold,italic,underline,strikethrough,fontSize,lists,orderedLists,indent,outdent,alignLeft,alignCenter,alignRight,alignJustify,links,textColor,highlight")}
+            onChange={(v) => updateField("toolbar", v)}
+            options={[
+              { value: "bold,italic", label: "Minimal (Bold, Italic)" },
+              { value: "bold,italic,underline,strikethrough,fontSize,lists,links", label: "Basic Formatting" },
+              { value: "bold,italic,underline,strikethrough,fontSize,lists,orderedLists,indent,outdent,alignLeft,alignCenter,alignRight,alignJustify,links,textColor,highlight", label: "Standard (Recommended)" },
+              { value: "bold,italic,underline,strikethrough,fontSize,lists,orderedLists,indent,outdent,alignLeft,alignCenter,alignRight,alignJustify,links,textColor,highlight,superscript,subscript,blockquote,codeBlock,horizontalRule", label: "Full (All Features)" },
+            ]}
+          />
           <PropCheckbox label="Required" checked={!!config.required} onChange={(v) => updateField("required", v)} />
         </div>
       )}
@@ -6263,6 +7703,9 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [showCanvasSettings, setShowCanvasSettings] = useState(false);
   const [forceViewTrigger, setForceViewTrigger] = useState(0);
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [imagePickerTargetId, setImagePickerTargetId] = useState<string | null>(null);
+  const [copiedConfig, setCopiedConfig] = useState<{ config: Record<string, string | number | boolean>; type: WidgetType } | null>(null);
 
   // ── Seed canvasConfig page fields from props on mount ──
   // Uses onCanvasConfigChange directly to bypass undo history for initial seed
@@ -6831,6 +8274,8 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
     <GlobalTypographyContext.Provider value={globalTypo}>
     <PreviewModeContext.Provider value={previewMode}>
     <ImagesContext.Provider value={images}>
+    <SetCopiedConfigContext.Provider value={setCopiedConfig}>
+    <CopiedConfigContext.Provider value={copiedConfig}>
     <DndProvider backend={HTML5Backend}>
       <div className="flex flex-col h-full overflow-hidden">
         {/* Toolbar removed — controls now rendered in parent modal header */}
@@ -6866,6 +8311,18 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
             onDrop={handleDrop}
             onMove={handleMove}
             onUpdateConfig={handleUpdateConfig}
+            onImagePick={(id) => { setImagePickerTargetId(id); setImagePickerOpen(true); }}
+            onCopyConfig={() => {
+              const el = findElementById(elements, selectedId);
+              if (el) setCopiedConfig({ config: el.config, type: el.type });
+            }}
+            onPasteConfig={() => {
+              if (copiedConfig && selectedId) {
+                const el = findElementById(elements, selectedId);
+                if (el) handleUpdateConfig(selectedId, { ...el.config, ...copiedConfig.config });
+              }
+            }}
+            hasCopiedConfig={copiedConfig && copiedConfig.type}
             onDropInCell={handleDropInCell}
             onMoveInCell={handleMoveInCell}
             onCrossMove={handleCrossMove}
@@ -6935,7 +8392,23 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
           </div>
         </div>
       </div>
+
+      {/* Image Picker Modal */}
+      <ImagePickerModal
+        open={imagePickerOpen}
+        images={images}
+        onClose={() => { setImagePickerOpen(false); setImagePickerTargetId(null); }}
+        onSelect={(img) => {
+          if (imagePickerTargetId) {
+            handleUpdateConfig(imagePickerTargetId, { imageId: img.id, imageName: img.name, srcUrl: "" });
+          }
+          setImagePickerOpen(false);
+          setImagePickerTargetId(null);
+        }}
+      />
     </DndProvider>
+    </CopiedConfigContext.Provider>
+    </SetCopiedConfigContext.Provider>
     </ImagesContext.Provider>
     </PreviewModeContext.Provider>
     </GlobalTypographyContext.Provider>

@@ -29,7 +29,10 @@ export type WidgetType =
   | "template-description"
   | "text-area"
   | "text-box"
-  | "toggle";
+  | "toggle"
+  | "range"
+  | "color"
+  | "rich-text";
 
 // ── Canvas element (recursive for containers) ──────────────────────
 export interface CanvasElement {

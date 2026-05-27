@@ -69,10 +69,12 @@ async function initSchema() {
     name VARCHAR(255) NOT NULL,
     active TINYINT(1) DEFAULT 1,
     preview_type VARCHAR(32) DEFAULT 'image',
-    preview_src TEXT,
+    preview_src LONGTEXT,
     preview_aspect VARCHAR(64),
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`);
+  // Ensure preview_src can hold large base64 images
+  try { await query("ALTER TABLE ds360_images MODIFY preview_src LONGTEXT"); } catch (e) { /* already LONGTEXT or no permission */ }
   await query(`CREATE TABLE IF NOT EXISTS ds360_report_fields (
     id VARCHAR(64) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,

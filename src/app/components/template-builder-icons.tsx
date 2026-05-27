@@ -422,6 +422,38 @@ export function AlignJustifyIcon() {
   );
 }
 
+/* Range Slider */
+export function RangeSliderIcon() {
+  return (
+    <svg viewBox="0 0 28 28" fill="none" className="w-full h-full">
+      <path d="M4 14h6M18 14h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="10" y="11" width="8" height="6" rx="3" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M4 20h20" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.3" />
+    </svg>
+  );
+}
+
+/* Color Picker */
+export function ColorPickerIcon() {
+  return (
+    <svg viewBox="0 0 28 28" fill="none" className="w-full h-full">
+      <circle cx="14" cy="14" r="8" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="14" cy="14" r="4" fill="currentColor" opacity="0.3" />
+      <path d="M14 6v4M14 18v4M6 14h4M18 14h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/* Rich Text Editor */
+export function RichTextIcon() {
+  return (
+    <svg viewBox="0 0 28 28" fill="none" className="w-full h-full">
+      <path d="M5 7h4l5 14h0l5-14h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 18h10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.4" />
+    </svg>
+  );
+}
+
 // =====================================================================
 // Widget icon map
 // =====================================================================
@@ -451,6 +483,9 @@ export const WIDGET_ICON_MAP: Record<WidgetType, React.ReactNode> = {
   "text-area": <TextAreaIcon />,
   "text-box": <TextBoxIcon />,
   toggle: <ToggleIcon />,
+  range: <RangeSliderIcon />,
+  color: <ColorPickerIcon />,
+  "rich-text": <RichTextIcon />,
 };
 
 export const WIDGET_TYPE_LABELS: Record<WidgetType, string> = {
@@ -479,4 +514,7 @@ export const WIDGET_TYPE_LABELS: Record<WidgetType, string> = {
   "text-area": "Text Area",
   "text-box": "Text Box",
   toggle: "Toggle",
+  range: "Range Slider",
+  color: "Color Picker",
+  "rich-text": "Rich Text",
 };

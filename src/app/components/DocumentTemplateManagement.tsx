@@ -36,6 +36,7 @@ export function DocumentTemplateManagement() {
   const [loadingImages, setLoadingImages] = useState(false);
   const [loadingFields, setLoadingFields] = useState(false);
   const [loadingTypes, setLoadingTypes] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // ── Load data from API on mount ─────────────────────────────────────────────
   useEffect(() => {
@@ -74,6 +75,13 @@ export function DocumentTemplateManagement() {
       }
     }).catch((err) => {
       console.error('[HYDRATE] getAll failed:', err);
+      // Check if this is an auth or network error
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('Authentication required') || errMsg.includes('login page') || errMsg.includes('HTML instead of JSON')) {
+        setAuthError('The API server is not responding correctly. This usually means the backend server is down or requires authentication. Please contact your administrator.');
+      } else if (errMsg.includes('Network error') || errMsg.includes('Failed to fetch') || errMsg.includes('Unable to reach')) {
+        setAuthError('Cannot connect to the API server. The server may be down or unreachable. Please try again later or contact your administrator.');
+      }
       // Fall back to static initialTemplates
     }).finally(() => setLoadingTemplates(false));
 
@@ -279,6 +287,24 @@ export function DocumentTemplateManagement() {
 
   return (
     <div className="flex flex-col h-full bg-white p-3 sm:p-4 lg:p-5 gap-2.5 overflow-hidden">
+      {/* Auth Error Banner */}
+      {authError && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4 flex items-start gap-3 shrink-0">
+          <svg className="w-5 h-5 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <div className="flex-1">
+            <p className="text-red-800 font-semibold text-sm">API Connection Error</p>
+            <p className="text-red-700 text-sm mt-1">{authError}</p>
+          </div>
+          <button
+            onClick={() => { setAuthError(null); window.location.reload(); }}
+            className="text-red-500 hover:text-red-700 text-sm font-medium underline shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex flex-col gap-2 shrink-0">
         {/* Title */}

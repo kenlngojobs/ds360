@@ -9,10 +9,12 @@ export function PropInput({
   label,
   value,
   onChange,
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  placeholder?: string;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -23,6 +25,7 @@ export function PropInput({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
         className="w-full border border-ds-haze rounded-md px-2.5 py-1.5 font-['Poppins',sans-serif] text-[11px] text-ds-dark-gray outline-none focus:border-ds-purple transition-colors bg-white"
       />
     </div>
@@ -147,6 +150,75 @@ export function PropReadonly({
       </span>
       <div className="w-full bg-[#f0f0f0] border border-ds-haze rounded-md px-2.5 py-1.5">
         <span className="font-['Poppins',sans-serif] text-[11px] text-ds-dark-gray">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+export function PropVerticalAlign({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const options = [
+    { value: "top", label: "Top", icon: (
+      <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+        <rect x="2" y="2" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+        <rect x="2" y="7" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+        <rect x="2" y="12" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+      </svg>
+    )},
+    { value: "center", label: "Center", icon: (
+      <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+        <rect x="2" y="2" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+        <rect x="2" y="6.5" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+        <rect x="2" y="11" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+      </svg>
+    )},
+    { value: "bottom", label: "Bottom", icon: (
+      <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+        <rect x="2" y="2" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+        <rect x="2" y="7" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.3"/>
+        <rect x="2" y="12" width="12" height="3" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+      </svg>
+    )},
+    { value: "justify", label: "Justify", icon: (
+      <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5">
+        <rect x="2" y="2" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+        <rect x="2" y="6.75" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.2" opacity="0.5"/>
+        <rect x="2" y="11.5" width="12" height="2.5" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+      </svg>
+    )},
+  ];
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="font-['Poppins',sans-serif] text-[10px] text-ds-gray" style={{ fontWeight: 500 }}>
+        {label}
+      </span>
+      <div className="flex gap-1">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={`flex-1 flex flex-col items-center gap-0.5 py-1.5 px-1 rounded-md border transition-all cursor-pointer ${
+              value === opt.value
+                ? "border-ds-purple bg-ds-purple-light text-ds-purple"
+                : "border-ds-haze bg-white text-ds-gray hover:border-ds-purple/40 hover:text-ds-purple"
+            }`}
+            title={opt.label}
+          >
+            {opt.icon}
+            <span className="font-['Poppins',sans-serif] text-[8px]" style={{ fontWeight: 500 }}>
+              {opt.label}
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
