@@ -165,6 +165,21 @@ var server = http.createServer(async function(req, res) {
       return send(res, 200, { success: true });
     }
 
+    if (method === 'PUT' && tmplId) {
+      var pb = await parseBody(req);
+      if (!pb.id || !pb.name) return send(res, 400, { error: 'id and name required' });
+      if (pb.id !== tmplId[1]) return send(res, 400, { error: 'id in URL and body do not match' });
+      await query(
+        'INSERT INTO ds360_templates (id,name,description,active,approval_required,read_only,internal_use_only,template_type_id,config_json,elements_json,typography_json) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description),active=VALUES(active),approval_required=VALUES(approval_required),read_only=VALUES(read_only),internal_use_only=VALUES(internal_use_only),template_type_id=VALUES(template_type_id),config_json=VALUES(config_json),elements_json=VALUES(elements_json),typography_json=VALUES(typography_json),updated_at=CURRENT_TIMESTAMP',
+        [pb.id, pb.name, pb.description || '', pb.active !== false ? 1 : 0, pb.approvalRequired ? 1 : 0,
+         pb.readOnly || 'No (Editable by partners)', pb.internalUseOnly || 'No (Available to partners)',
+         pb.templateTypeId || pb.template_type_id || '',
+         pb.config_json || null, pb.elements_json || null, pb.typography_json || null]
+      );
+      console.log('[DB] Updated template "' + pb.name + '" via PUT /api/templates/' + tmplId[1]);
+      return send(res, 200, { success: true });
+    }
+
     if (method === 'DELETE' && tmplId) {
       await query('DELETE FROM ds360_templates WHERE id=?', [tmplId[1]]);
       return send(res, 200, { success: true });
