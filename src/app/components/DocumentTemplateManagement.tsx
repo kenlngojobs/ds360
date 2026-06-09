@@ -234,10 +234,16 @@ export function DocumentTemplateManagement() {
           id: w.id,
           type: w.type,
           label: w.label,
-          config: w.config,
+          config: {
+            ...w.config,
+            structurePicked: true,
+          },
         };
-        if (w.fields && w.fields.length > 0) {
-          // Place field widgets in a single row of a child container.
+        if (w.children && w.children.length > 0) {
+          // Preserve spatial container children from the matcher (e.g., row-group layouts)
+          el.children = w.children;
+        } else if (w.fields && w.fields.length > 0) {
+          // Flat field list: place field widgets in a single row of a child container.
           el.children = [
             [
               w.fields.map((f) => ({
