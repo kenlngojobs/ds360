@@ -6,6 +6,13 @@ import { ImagesTab, type ImageDocument } from "./ImagesTab";
 import { ReportFieldsTab, type ReportField } from "./ReportFieldsTab";
 import { ReportTemplateTypesTab, type ReportTemplateType } from "./ReportTemplateTypesTab";
 import { CreateTemplateModal, type SavedTemplateData } from "./CreateTemplateModal";
+import { defaultTemplateConfig } from "./TemplatePreview";
+import { defaultCanvasConfig } from "./TemplateBuilder";
+import { ImportTemplateModal } from "./ImportTemplateModal";
+import { ImportPreviewPanel } from "./ImportPreviewPanel";
+import type { ParsedDocument } from "../../services/document-parsers/types";
+import type { MatchResult } from "../../services/import/field-matcher";
+import { emitImportStart, emitParseComplete, emitParseError, emitMatchComplete, emitApply } from "../../services/import/telemetry";
 import {
   templatesApi,
   imagesApi,
@@ -28,6 +35,13 @@ export function DocumentTemplateManagement() {
   const [showInactive, setShowInactive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // T-07: Preview state — holds the MatchResult between parsing and the user
+  // confirming the apply. The ImportPreviewPanel renders this.
+  const [previewMatch, setPreviewMatch] = useState<{
+    match: MatchResult;
+    sourceFile: { name: string; size: number };
+  } | null>(null);
   /** Full builder data store — maps template ID → SavedTemplateData for reconstruction */
   const [templateStore, setTemplateStore] = useState<Record<string, SavedTemplateData>>({});
   /** When editing/duplicating, holds the ID + data to pass to the modal */
@@ -130,6 +144,100 @@ export function DocumentTemplateManagement() {
       });
     }
   }, [templates]);
+
+  // T-08: Apply an imported widget tree (from the document import flow) as a new template.
+  // Takes a MatchResult (from src/services/import/field-matcher) and converts it into
+  // SavedTemplateData so the existing handleSaveTemplate flow can persist it.
+  const applyImportedTemplate = useCallback(
+    (
+      matchResult: MatchResult,
+      sourceFile: { name: string; size: number },
+    ) => {
+      const id = `tmpl-imported-${Date.now()}`;
+      // Derive name from source filename (strip extension, replace separators)
+      const baseName = sourceFile.name
+        .replace(/\.[^.]+$/, "")
+        .replace(/[_-]+/g, " ")
+        .trim();
+      const templateName = baseName
+        ? `Imported: ${baseName}`
+        : `Imported ${new Date().toISOString().slice(0, 10)}`;
+
+      // Build elements array: top-level widgets become top-level elements.
+      // For widgets with fields (containers, repeaters), the fields become child elements
+      // in a single row of a child container, matching the CanvasElement.children[][][] shape.
+      const elements = matchResult.widgetTree.map((w) => {
+        const el: Record<string, unknown> = {
+          id: w.id,
+          type: w.type,
+          label: w.label,
+          config: w.config,
+        };
+        if (w.fields && w.fields.length > 0) {
+          // Place field widgets in a single row of a child container.
+          el.children = [
+            [
+              w.fields.map((f) => ({
+                id: `${w.id}-${f.name}`,
+                type: f.widgetType,
+                label: f.name,
+                config: f.sampleValues && f.sampleValues[0]
+                  ? { defaultValue: f.sampleValues[0] }
+                  : {},
+              })),
+            ],
+          ];
+        }
+        return el;
+      });
+
+      // Use the canonical defaultTemplateConfig and override only the fields
+      // that come from the import. This keeps all 30+ fields of TemplateConfig
+      // present so downstream consumers (the server, the template builder)
+      // see a complete, well-formed config and don't fail on missing keys.
+      const config = {
+        ...defaultTemplateConfig,
+        description: `Imported from ${sourceFile.name}`,
+        // Folder path, display name, layout, deadlines, etc. all retain
+        // their defaultTemplateConfig values; the imported template is
+        // a fresh draft the user can edit.
+        internalOnly: false,
+        readOnlyEdit: false,
+        requiresApproval: false,
+        reportTemplateType: "",
+      };
+
+      // Use the canonical defaultCanvasConfig from the template builder so
+      // the canvas typography + page settings match what the manual
+      // "Create New Template" flow produces. The prior hand-rolled block
+      // duplicated most of this but missed any future fields the system adds.
+      const canvasConfig = defaultCanvasConfig;
+
+      // templateType at the SavedTemplateData level is a free-form string
+      // (it's the human-readable name, separate from TemplateConfig.reportTemplateType
+      // which is the ID). Empty string lets the user fill it in the Configuration
+      // tab after the import.
+      const data: SavedTemplateData = {
+        templateName,
+        templateType: "",
+        config,
+        elements,
+        canvasConfig,
+      };
+
+      // Source file metadata (T-10b): the server now accepts sourceFileName + importedAt
+      // We tag the call with these so the server can record provenance.
+      const stamped = {
+        ...data,
+        sourceFileName: sourceFile.name,
+        importedAt: new Date().toISOString(),
+      };
+
+      // Reuse the existing save flow
+      handleSaveTemplate(stamped);
+    },
+    [handleSaveTemplate]
+  );
 
   const handleSaveTemplate = useCallback((data: SavedTemplateData) => {
     const isEditing = editPayload !== null;
@@ -371,7 +479,11 @@ export function DocumentTemplateManagement() {
                     Create New Template
                   </span>
                 </button>
-                <button className="bg-ds-purple flex items-center justify-center px-6 sm:px-[50px] py-2.5 sm:py-3 rounded-[100px] border border-ds-purple cursor-pointer hover:bg-ds-purple-hover transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="bg-ds-purple flex items-center justify-center px-6 sm:px-[50px] py-2.5 sm:py-3 rounded-[100px] border border-ds-purple cursor-pointer hover:bg-ds-purple-hover transition-colors"
+                >
                   <span className="font-['Poppins',sans-serif] text-[13px] sm:text-[14px] text-white leading-normal whitespace-nowrap" style={{ fontWeight: 500 }}>
                     Import Template
                   </span>
@@ -529,6 +641,115 @@ export function DocumentTemplateManagement() {
         onSave={handleSaveTemplate}
         editData={editPayload}
       />
+
+      {/* Import Template Modal — T-03, T-06, T-07, T-08, T-09, T-12 */}
+      <ImportTemplateModal
+        open={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onFileParsed={(file, sanitizedName, parsed) => {
+          // T-06: Run the field-matching algorithm on the parsed document.
+          // (Dynamic-imported to keep the matcher out of the main bundle.)
+          // The modal now passes the full ParsedDocument (FX-05), so we can
+          // hand it directly to the matcher without fabricating metadata.
+          import("../../services/import/field-matcher.ts")
+            .then(({ matchFieldsToWidgets }) => {
+              const match = matchFieldsToWidgets(parsed);
+              // T-07: stage the match into preview state; do NOT auto-apply.
+              // The ImportPreviewPanel (rendered below) lets the user review
+              // and confirm before applyImportedTemplate runs.
+              setPreviewMatch({ match, sourceFile: { name: sanitizedName, size: file.size } });
+              // Emit telemetry synchronously (telemetry is now statically
+              // imported at the top of this file).
+              emitMatchComplete(
+                sanitizedName,
+                match.stats.totalWidgets,
+                match.stats.avgConfidence,
+                match.stats.lowConfidenceCount,
+              );
+            })
+            .catch((err) => {
+              toast.error("Import failed", {
+                description: err instanceof Error ? err.message : String(err),
+              });
+            });
+        }}
+      />
+
+      {/* T-07: Import Preview Panel — shown after a file is parsed and matched.
+          The user reviews the proposed widget tree, then clicks "Apply" to
+          convert the match into a SavedTemplateData and persist it. */}
+      {previewMatch && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="import-preview-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setPreviewMatch(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2
+                id="import-preview-title"
+                className="font-['Poppins',sans-serif] text-xl font-semibold text-ds-dark-gray"
+              >
+                Preview: {previewMatch.sourceFile.name}
+              </h2>
+              <button
+                onClick={() => setPreviewMatch(null)}
+                aria-label="Close preview"
+                className="text-ds-gray hover:text-ds-dark-gray transition-colors p-1"
+                type="button"
+              >
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M6 18L18 6" />
+                </svg>
+              </button>
+            </div>
+            <ImportPreviewPanel
+              matchResult={previewMatch.match}
+              onChange={(updated) =>
+                setPreviewMatch({
+                  match: updated,
+                  sourceFile: previewMatch.sourceFile,
+                })
+              }
+            />
+            <div className="flex items-center justify-end gap-2 mt-6">
+              <button
+                onClick={() => setPreviewMatch(null)}
+                className="px-4 py-2 text-ds-dark-gray hover:bg-ds-light-gray rounded-lg text-sm font-medium transition-colors"
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const match = previewMatch.match;
+                  const src = previewMatch.sourceFile;
+                  applyImportedTemplate(match, src);
+                  emitApply(src.name, match.stats.totalWidgets, `tmpl-imported-${Date.now()}`);
+                  setPreviewMatch(null);
+                  setIsImportModalOpen(false);
+                  toast.success(`Imported: ${src.name}`, {
+                    description: `${match.stats.totalWidgets} widget(s) created. ${match.stats.lowConfidenceCount} need review.`,
+                  });
+                }}
+                className="px-4 py-2 bg-ds-purple text-white rounded-lg text-sm font-medium hover:bg-ds-purple-hover transition-colors"
+                type="button"
+              >
+                Apply Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
