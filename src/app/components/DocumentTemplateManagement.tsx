@@ -145,6 +145,69 @@ export function DocumentTemplateManagement() {
     }
   }, [templates]);
 
+  const handleSaveTemplate = useCallback((data: SavedTemplateData) => {
+    const isEditing = editPayload !== null;
+    const id = isEditing ? editPayload.id : `tmpl-${Date.now()}`;
+
+    // Serialize builder data for server persistence
+    const configJson = JSON.stringify(data.config ?? {});
+    const elementsJson = JSON.stringify(data.elements ?? []);
+    const typographyJson = data.canvasConfig ? JSON.stringify(data.canvasConfig) : undefined;
+
+    const updatedDoc: TemplateDocument = {
+      id,
+      name: data.templateName,
+      active: true,
+      description: data.config.description || data.templateName,
+      approvalRequired: data.config.requiresApproval,
+      readOnly: data.config.readOnlyEdit
+        ? "Yes (Partners cannot edit)"
+        : "No (Editable by partners)",
+      internalUseOnly: data.config.internalOnly
+        ? "Yes (Internal use only)"
+        : "No (Available to partners)",
+      templateTypeId: data.config.reportTemplateType,
+      configJson,
+      elementsJson,
+      typographyJson,
+    };
+
+    if (isEditing) {
+      setTemplates((prev) => prev.map((t) => (t.id === id ? updatedDoc : t)));
+    } else {
+      setTemplates((prev) => [updatedDoc, ...prev]);
+    }
+
+    // Persist full builder data in the store
+    setTemplateStore((prev) => ({ ...prev, [id]: data }));
+
+    // ── Sync to API ───────────────────────────────────────────────────────────
+    const persist = () =>
+      isEditing
+        ? templatesApi.update(id, updatedDoc)
+        : templatesApi.create(updatedDoc);
+
+    persist()
+      .then(() => {
+        toast.success(
+          `Template "${data.templateName}" ${isEditing ? "updated" : "saved"} successfully`,
+          {
+            description: isEditing
+              ? `Template updated with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`
+              : `Added to the Templates list with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`,
+          }
+        );
+      })
+      .catch((err) => {
+        toast.error("Failed to save template to server", {
+          description: err?.message ?? "Please try again.",
+        });
+      });
+
+    setIsCreateTemplateModalOpen(false);
+    setEditPayload(null);
+  }, [editPayload]);
+
   // T-08: Apply an imported widget tree (from the document import flow) as a new template.
   // Takes a MatchResult (from src/services/import/field-matcher) and converts it into
   // SavedTemplateData so the existing handleSaveTemplate flow can persist it.
@@ -239,68 +302,6 @@ export function DocumentTemplateManagement() {
     [handleSaveTemplate]
   );
 
-  const handleSaveTemplate = useCallback((data: SavedTemplateData) => {
-    const isEditing = editPayload !== null;
-    const id = isEditing ? editPayload.id : `tmpl-${Date.now()}`;
-
-    // Serialize builder data for server persistence
-    const configJson = JSON.stringify(data.config ?? {});
-    const elementsJson = JSON.stringify(data.elements ?? []);
-    const typographyJson = data.canvasConfig ? JSON.stringify(data.canvasConfig) : undefined;
-
-    const updatedDoc: TemplateDocument = {
-      id,
-      name: data.templateName,
-      active: true,
-      description: data.config.description || data.templateName,
-      approvalRequired: data.config.requiresApproval,
-      readOnly: data.config.readOnlyEdit
-        ? "Yes (Partners cannot edit)"
-        : "No (Editable by partners)",
-      internalUseOnly: data.config.internalOnly
-        ? "Yes (Internal use only)"
-        : "No (Available to partners)",
-      templateTypeId: data.config.reportTemplateType,
-      configJson,
-      elementsJson,
-      typographyJson,
-    };
-
-    if (isEditing) {
-      setTemplates((prev) => prev.map((t) => (t.id === id ? updatedDoc : t)));
-    } else {
-      setTemplates((prev) => [updatedDoc, ...prev]);
-    }
-
-    // Persist full builder data in the store
-    setTemplateStore((prev) => ({ ...prev, [id]: data }));
-
-    // ── Sync to API ───────────────────────────────────────────────────────────
-    const persist = () =>
-      isEditing
-        ? templatesApi.update(id, updatedDoc)
-        : templatesApi.create(updatedDoc);
-
-    persist()
-      .then(() => {
-        toast.success(
-          `Template "${data.templateName}" ${isEditing ? "updated" : "saved"} successfully`,
-          {
-            description: isEditing
-              ? `Template updated with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`
-              : `Added to the Templates list with ${data.elements.length} element${data.elements.length !== 1 ? "s" : ""}.`,
-          }
-        );
-      })
-      .catch((err) => {
-        toast.error("Failed to save template to server", {
-          description: err?.message ?? "Please try again.",
-        });
-      });
-
-    setIsCreateTemplateModalOpen(false);
-    setEditPayload(null);
-  }, [editPayload]);
 
   // ── Image save handler — sync to API ────────────────────────────────────────
   const handleSaveImage = useCallback((image: ImageDocument) => {
