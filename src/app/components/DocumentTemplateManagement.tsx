@@ -125,7 +125,7 @@ export function DocumentTemplateManagement() {
             if (full.configJson !== undefined || full.elementsJson !== undefined || full.typographyJson !== undefined) {
               const configParsed = JSON.parse(full.configJson ?? '{}');
               const rawElements = JSON.parse(full.elementsJson ?? '[]');
-              const migratedElements = migrateContainerElements(rawElements);
+              const migratedElements = migrateElements(rawElements);
               const parsed: SavedTemplateData = {
                 templateName: full.name,
                 templateType: full.templateTypeId || configParsed.reportTemplateType || '',
@@ -308,9 +308,13 @@ export function DocumentTemplateManagement() {
                 id: `${w.id}-${f.name}`,
                 type: f.widgetType,
                 label: f.name,
-                config: f.sampleValues && f.sampleValues[0]
-                  ? { defaultValue: f.sampleValues[0] }
-                  : {},
+                config: {
+                  label: f.name,
+                  placeholder: `Enter ${f.name}...`,
+                  ...(f.sampleValues && f.sampleValues[0]
+                    ? { defaultValue: f.sampleValues[0] }
+                    : {}),
+                },
               })),
             ],
           ];
@@ -414,11 +418,36 @@ export function DocumentTemplateManagement() {
     });
   }, []);
 
-  const handleEditTemplate = useCallback((id: string) => {
-    const storedData = templateStore[id];
+  const handleEditTemplate = useCallback(async (id: string) => {
+    let storedData = templateStore[id];
+    if (!storedData) {
+      // Fallback: fetch builder data from the API on demand
+      toast.loading("Loading template data...", { id: `edit-${id}` });
+      try {
+        const full = await templatesApi.getOne(id);
+        if (full.configJson !== undefined || full.elementsJson !== undefined || full.typographyJson !== undefined) {
+          const configParsed = JSON.parse(full.configJson ?? '{}');
+          const rawElements = JSON.parse(full.elementsJson ?? '[]');
+          const migratedElements = migrateElements(rawElements);
+          storedData = {
+            templateName: full.name,
+            templateType: full.templateTypeId || configParsed.reportTemplateType || '',
+            config: configParsed,
+            elements: migratedElements,
+            canvasConfig: full.typographyJson ? JSON.parse(full.typographyJson) : {},
+          };
+          // Store for next time
+          setTemplateStore((prev) => ({ ...prev, [id]: storedData! }));
+        }
+      } catch (err) {
+        console.error('[EDIT] on-demand fetch failed for', id, err);
+      } finally {
+        toast.dismiss(`edit-${id}`);
+      }
+    }
     if (!storedData) {
       toast.error("Cannot edit this template", {
-        description: "No saved builder data found. Only templates created in this session can be edited.",
+        description: "No saved builder data found. The server may not have full template data.",
       });
       return;
     }

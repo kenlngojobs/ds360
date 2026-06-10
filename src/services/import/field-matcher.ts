@@ -366,7 +366,11 @@ function buildRowContainers(groups: RowGroup[], sectionPath: string, section?: P
             id: makeId("w", `${sectionPath}-r${gi}-c${c.columnIndex}-${f.name}`),
             type: m.widgetType,
             label: f.name,
-            config: f.sampleValues && f.sampleValues[0] ? { defaultValue: f.sampleValues[0] } : {},
+            config: {
+              label: f.name,
+              placeholder: `Enter ${f.name}...`,
+              ...(f.sampleValues && f.sampleValues[0] ? { defaultValue: f.sampleValues[0] } : {}),
+            },
             confidence: 0.7,
             rationale: `Field in row ${gi + 1}, col ${c.columnIndex + 1}`,
           };
