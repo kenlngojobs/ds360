@@ -213,18 +213,35 @@ function clusterXCoords(items: PdfTextItem[]): number[] {
     }
   }
   xv.sort((a, b) => a - b);
-  const clusters: number[] = [];
-  let cur: number[] = [];
+  // First pass: cluster items that are within 20px of each other
+  const rawClusters: number[][] = [];
   for (let i = 0; i < xv.length; i++) {
-    if (cur.length === 0 || Math.abs(xv[i] - cur[cur.length - 1]) < 20) {
-      cur.push(xv[i]);
+    if (rawClusters.length === 0 || Math.abs(xv[i] - rawClusters[rawClusters.length - 1][rawClusters[rawClusters.length - 1].length - 1]) < 20) {
+      if (rawClusters.length === 0) rawClusters.push([xv[i]]);
+      else rawClusters[rawClusters.length - 1].push(xv[i]);
     } else {
-      clusters.push(Math.round(cur.reduce((s, v) => s + v, 0) / cur.length));
-      cur = [xv[i]];
+      rawClusters.push([xv[i]]);
     }
   }
-  if (cur.length) clusters.push(Math.round(cur.reduce((s, v) => s + v, 0) / cur.length));
-  return clusters;
+  // Second pass: merge adjacent clusters that are close (< 80px) AND the
+  // later cluster has few items (likely word-wrapping of the same column).
+  // This prevents "Vendor" (x=219) and "Name" (x=261, 42px gap) from
+  // becoming two columns, while still separating real columns.
+  const merged: number[] = [];
+  for (const cluster of rawClusters) {
+    const center = cluster.reduce((s, v) => s + v, 0) / cluster.length;
+    if (merged.length > 0) {
+      const prev = merged[merged.length - 1];
+      const gap = center - prev;
+      // If gap is small (< 80px), merge by averaging centers
+      if (gap < 80) {
+        merged[merged.length - 1] = (prev + center) / 2;
+        continue;
+      }
+    }
+    merged.push(center);
+  }
+  return merged.map((c) => Math.round(c));
 }
 
 function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSection[] {
@@ -309,9 +326,9 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
       const s = r.str.trim();
       if (!s) return false;
       // Single word under 8 chars that looks like reverse English (e.g., "nalp", "noitca")
-      if (s.length < 8 && /^[a-z]+$/.test(s)) {
+      if (s.length < 12 && /^[a-z]+$/.test(s)) {
         const reversed = s.split("").reverse().join("");
-        const commonWords = ["plan", "action", "corrective", "preventive", "vendor", "date", "name", "title", "email", "contact", "details", "comments"];
+        const commonWords = ["plan", "action", "corrective", "preventive", "vendor", "date", "name", "title", "email", "contact", "details", "comments", "description", "monitoring", "responsible", "member", "identified", "deficiency", "response", "completed", "validated", "deficiencies", "reoccurrence", "problem"];
         if (commonWords.includes(reversed)) return false;
       }
       return true;
@@ -325,7 +342,7 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
     // Group items by column within the row
     const colMap = new Map<number, PdfTextItem[]>();
     for (const r of cleanRow) {
-      const colIndex = xClusters.findIndex((cx) => Math.abs(r.x - cx) < 20);
+      const colIndex = xClusters.findIndex((cx) => Math.abs(r.x - cx) < 50);
       const ci = colIndex >= 0 ? colIndex : 0;
       if (!colMap.has(ci)) colMap.set(ci, []);
       colMap.get(ci)!.push(r);
