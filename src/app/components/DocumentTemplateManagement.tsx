@@ -290,10 +290,17 @@ export function DocumentTemplateManagement() {
       // Auto-match image widgets against the image database by name.
       // PDFs reference images by opaque XObject names; the closest match is
       // typically a soft-filename match against the image's display name.
-      const matchImage = (imageName: string): ImageDocument | undefined => {
+      // Falls back to the first active image when the only image is auto-named.
+      const matchImage = (imageName: string, isFirstImage: boolean): ImageDocument | undefined => {
         if (!imageName) return undefined;
         const needle = imageName.toLowerCase();
-        // Try a few heuristics: exact, contains, token overlap.
+        // Reject obvious auto-generated XObject names early
+        const isAutoName = /^img[-_]\d+[-_]\d+$/.test(needle);
+        if (isAutoName && isFirstImage && images.length > 0) {
+          // First image on the page, only one in the PDF — use the first
+          // active image in the database as a sensible default.
+          return images.find((i) => i.active) ?? images[0];
+        }
         const candidates = images.filter((i) => i.active);
         const exact = candidates.find((i) => i.name.toLowerCase() === needle);
         if (exact) return exact;
@@ -323,20 +330,42 @@ export function DocumentTemplateManagement() {
             structurePicked: true,
           },
         };
-        // Image: auto-link to a matching image in the database
-        if (w.type === "image") {
-          const match = matchImage(w.label || "");
-          if (match) {
-            el.config = {
-              ...el.config,
-              imageId: match.id,
-              imageName: match.name,
-              previewType: match.previewType,
-              previewSrc: match.previewSrc,
-            };
-            el.label = match.name;
+        // Recursively auto-link image widgets (whether wrapped or top-level)
+        let imageIndex = 0;
+        const totalImages = matchResult.widgetTree.reduce((n, w) => {
+          if (w.type === "image") return n + 1;
+          return n + (w.children
+            ? (w.children as unknown[][][]).reduce((a, row) => a + row.reduce((b, cell) => b + cell.length, 0), 0)
+            : 0);
+        }, 0);
+        const linkImage = (childEl: Record<string, unknown>) => {
+          if (childEl.type === "image") {
+            const match = matchImage((childEl.label as string) || "", imageIndex === 0);
+            imageIndex += 1;
+            if (match) {
+              childEl.config = {
+                ...childEl.config,
+                imageId: match.id,
+                imageName: match.name,
+                previewType: match.previewType,
+                previewSrc: match.previewSrc,
+              };
+              childEl.label = match.name;
+            }
+          }
+        };
+        linkImage(el);
+        if (Array.isArray(w.children)) {
+          for (const row of w.children as unknown[][][]) {
+            for (const cell of row) {
+              for (const child of cell as Record<string, unknown>[]) {
+                linkImage(child);
+              }
+            }
           }
         }
+        // Suppress unused variable warning for totalImages
+        void totalImages;
         if (w.children && w.children.length > 0) {
           // Preserve spatial container children from the matcher (e.g., row-group layouts)
           el.children = w.children;
