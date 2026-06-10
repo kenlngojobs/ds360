@@ -421,7 +421,6 @@ export function DocumentTemplateManagement() {
   const handleEditTemplate = useCallback(async (id: string) => {
     let storedData = templateStore[id];
     if (!storedData) {
-      // Fallback: fetch builder data from the API on demand
       toast.loading("Loading template data...", { id: `edit-${id}` });
       try {
         const full = await templatesApi.getOne(id);
@@ -436,13 +435,32 @@ export function DocumentTemplateManagement() {
             elements: migratedElements,
             canvasConfig: full.typographyJson ? JSON.parse(full.typographyJson) : {},
           };
-          // Store for next time
           setTemplateStore((prev) => ({ ...prev, [id]: storedData! }));
         }
       } catch (err) {
         console.error('[EDIT] on-demand fetch failed for', id, err);
       } finally {
         toast.dismiss(`edit-${id}`);
+      }
+    }
+    // Ultimate fallback: synthesize empty builder data from the template metadata row
+    if (!storedData) {
+      const template = templates.find((t) => t.id === id);
+      if (template) {
+        storedData = {
+          templateName: template.name,
+          templateType: template.templateTypeId || '',
+          config: {
+            description: template.description || template.name,
+            requiresApproval: template.approvalRequired,
+            readOnlyEdit: template.readOnly === 'Yes (Partners cannot edit)',
+            internalOnly: template.internalUseOnly === 'Yes (Internal use only)',
+            reportTemplateType: template.templateTypeId || '',
+          },
+          elements: [],
+          canvasConfig: {},
+        };
+        setTemplateStore((prev) => ({ ...prev, [id]: storedData! }));
       }
     }
     if (!storedData) {
@@ -453,7 +471,7 @@ export function DocumentTemplateManagement() {
     }
     setEditPayload({ id, data: storedData });
     setIsCreateTemplateModalOpen(true);
-  }, [templateStore]);
+  }, [templateStore, templates]);
 
   const handleDuplicateTemplate = useCallback((id: string) => {
     const storedData = templateStore[id];
