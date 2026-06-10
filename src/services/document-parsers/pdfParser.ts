@@ -182,12 +182,12 @@ function clusterXCoords(items: PdfTextItem[]): number[] {
 }
 
 function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSection[] {
-  // 1. Group items by row (y-coordinate proximity)
+  // 1. Group items by row (y-coordinate proximity) — tight threshold for form PDFs
   const rows: PdfTextItem[][] = [];
   let curRow: PdfTextItem[] = [];
   items.sort((a, b) => a.y - b.y || a.x - b.x);
   for (const it of items) {
-    if (curRow.length === 0 || Math.abs(it.y - curRow[0].y) < 16) {
+    if (curRow.length === 0 || Math.abs(it.y - curRow[0].y) < 5) {
       curRow.push(it);
     } else {
       if (curRow.length) rows.push([...curRow]);
@@ -196,7 +196,7 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
   }
   if (curRow.length) rows.push([...curRow]);
 
-  // 2. Cluster x-coords for column detection
+  // 2. Cluster x-coords for column detection (tighter threshold for form alignment)
   const xClusters = clusterXCoords(items);
 
   // 3. Process each row into a section
@@ -205,15 +205,55 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
 
   for (const row of rows) {
     const text = row.map((r) => r.str).join(" ");
+    const trimmed = text.trim();
 
-    // Skip empty/underline-only rows
-    if (!text.trim() || /^[_\-\s]+$/.test(text.trim())) continue;
+    // Skip completely empty rows → divider/spacer
+    if (!trimmed) {
+      sections.push({
+        id: `pdf-s${id++}`,
+        type: "spacer",
+        content: "",
+        fields: [],
+        sourceLocation: { page: row[0]?.page ?? 1, paragraphIndex: id - 1 },
+      });
+      continue;
+    }
 
-    const first = row[0];
+    // Skip footer markers
+    const lower = trimmed.toLowerCase();
+    if (
+      lower.includes("copyright") ||
+      lower.includes("©") ||
+      lower.includes("all rights reserved") ||
+      lower.includes("proprietary") ||
+      lower.includes("confidential") ||
+      lower.includes("do not distribute") ||
+      /^\s*\d+\s*$/.test(trimmed) // standalone page number
+    ) {
+      continue;
+    }
+
+    // Filter garbage: rotated text fragments (short, reverse-spelled, orphaned)
+    const cleanRow = row.filter((r) => {
+      const s = r.str.trim();
+      if (!s) return false;
+      // Single word under 8 chars that looks like reverse English (e.g., "nalp", "noitca")
+      if (s.length < 8 && /^[a-z]+$/.test(s)) {
+        const reversed = s.split("").reverse().join("");
+        const commonWords = ["plan", "action", "corrective", "preventive", "vendor", "date", "name", "title", "email", "contact", "details", "comments"];
+        if (commonWords.includes(reversed)) return false;
+      }
+      return true;
+    });
+
+    if (cleanRow.length === 0) continue;
+
+    const first = cleanRow[0];
+    const cleanText = cleanRow.map((r) => r.str).join(" ");
 
     // Group items by column within the row
     const colMap = new Map<number, PdfTextItem[]>();
-    for (const r of row) {
+    for (const r of cleanRow) {
       const colIndex = xClusters.findIndex((cx) => Math.abs(r.x - cx) < 20);
       const ci = colIndex >= 0 ? colIndex : 0;
       if (!colMap.has(ci)) colMap.set(ci, []);
@@ -237,10 +277,9 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
       });
     }
 
-    // Heading detection: ALL CAPS short text, or section headers like "1. Section Name"
-    const isAllCaps = text === text.toUpperCase() && text.length > 3 && text.length < 100;
-    const isNumberedSection = /^\d+[\.\)]?\s+[A-Z]/.test(text) && fields.length === 1;
-    const isHeading = isAllCaps || isNumberedSection;
+    // Heading detection: only true ALL CAPS short text (not just lines starting with numbers)
+    const isAllCaps = cleanText === cleanText.toUpperCase() && cleanText.length > 3 && cleanText.length < 100 && /^[A-Z\s\d]+$/.test(cleanText);
+    const isHeading = isAllCaps;
 
     const style: SectionStyle | undefined = (first.fillColor || first.fontSize) ? {
       color: first.fillColor,
@@ -252,8 +291,8 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
     sections.push({
       id: sectionId,
       type: isHeading ? "heading" : "paragraph",
-      heading: isHeading ? text : undefined,
-      content: text,
+      heading: isHeading ? cleanText : undefined,
+      content: cleanText,
       fields,
       sourceLocation: {
         page: first.page,
