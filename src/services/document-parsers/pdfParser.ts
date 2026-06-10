@@ -55,13 +55,14 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
     for (const item of content.items as any[]) {
       if (typeof item.str !== "string") continue;
       const transform = item.transform || [1, 0, 0, 1, 0, 0];
-      // Normalize y so 0 = top of page (consistently top-down regardless of PDF coordinate space)
-      const rawY = transform[5];
-      const y = Math.max(pageHeight - rawY, 0);
+      // pdfjs transform[5] is in the viewport coordinate system.
+      // Most PDFs use top-down (y=0 at top, increases downward), but some
+      // use bottom-up (y=0 at bottom, increases upward). We detect the
+      // direction after all pages are processed and normalize if needed.
       allItems.push({
         str: item.str,
         x: transform[4],
-        y,
+        y: transform[5],
         width: item.width || 0,
         height: item.height || 0,
         fontName: item.fontName || "",
@@ -78,6 +79,31 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
       metadata: { fileName: file.name, fileSize: file.size, fileType: "pdf", parseDurationMs: 0, parserVersion: PARSER_VERSION, warnings },
       sections: [],
     };
+  }
+
+  // Detect coordinate direction per page and normalize if bottom-up
+  const pageYs = new Map<number, { items: PdfTextItem[]; pageHeight: number }>();
+  for (const it of allItems) {
+    if (!pageYs.has(it.page)) pageYs.set(it.page, { items: [], pageHeight: 0 });
+    pageYs.get(it.page)!.items.push(it);
+  }
+  // Fill page heights from viewport
+  for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 1 });
+    if (pageYs.has(pageNum)) pageYs.get(pageNum)!.pageHeight = viewport.height;
+  }
+  // Normalize: for each page, if median y is in the bottom half, flip
+  for (const [, { items, pageHeight }] of pageYs) {
+    if (!pageHeight || items.length < 2) continue;
+    const sortedYs = items.map((it) => it.y).sort((a, b) => a - b);
+    const medianY = sortedYs[Math.floor(sortedYs.length / 2)];
+    const isBottomUp = medianY > pageHeight / 2;
+    if (isBottomUp) {
+      for (const it of items) {
+        it.y = Math.max(pageHeight - it.y, 0);
+      }
+    }
   }
 
   const sections = buildSpatialSections(allItems, pageCount);
