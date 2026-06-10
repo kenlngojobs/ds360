@@ -8008,8 +8008,9 @@ export function TemplateBuilder({ reportFields, images, elements, onElementsChan
           if (el.type === "container") {
             const rowsChanged = config.rows && config.rows !== el.config.rows;
             const isFirstStructurePick = config.structurePicked && !el.config.structurePicked;
+            const hasImportedChildren = !!(el.children && el.children.length > 0 && el.children[0].length > 0);
 
-            if (isFirstStructurePick) {
+            if (isFirstStructurePick && !hasImportedChildren) {
               // First-time structure pick: auto-create inner Container widgets
               let parsedRows: number[][] = [[1]];
               try { parsedRows = JSON.parse(String(config.rows || "[[1]]")); } catch { /* fallback */ }
