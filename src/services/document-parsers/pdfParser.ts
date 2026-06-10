@@ -45,6 +45,8 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
 
   for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
     const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 1 });
+    const pageHeight = viewport.height;
     const content = await page.getTextContent();
 
     // Extract fill colors from the operator list (best-effort)
@@ -53,10 +55,13 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
     for (const item of content.items as any[]) {
       if (typeof item.str !== "string") continue;
       const transform = item.transform || [1, 0, 0, 1, 0, 0];
+      // Normalize y so 0 = top of page (consistently top-down regardless of PDF coordinate space)
+      const rawY = transform[5];
+      const y = Math.max(pageHeight - rawY, 0);
       allItems.push({
         str: item.str,
         x: transform[4],
-        y: transform[5],
+        y,
         width: item.width || 0,
         height: item.height || 0,
         fontName: item.fontName || "",
