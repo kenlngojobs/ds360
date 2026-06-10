@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import svgPaths from "../../imports/svg-m2vo2ju2qk";
 import { useResizableColumns, ResizeHandle, type ColumnDef } from "./useResizableColumns";
 
@@ -10,9 +10,7 @@ export interface TemplateDocument {
   approvalRequired: boolean;
   readOnly: string;
   internalUseOnly: string;
-  /** Links this template to a ReportTemplateType.id */
   templateTypeId: string;
-  /** Server-persisted builder data — only present in GET /api/templates/:id or on save */
   configJson?: string;
   elementsJson?: string;
   typographyJson?: string;
@@ -99,19 +97,114 @@ function DownloadIcon() {
   );
 }
 
+interface ConfirmDialogProps {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ open, title, message, confirmLabel, cancelLabel, onConfirm, onCancel }: ConfirmDialogProps) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onCancel]);
+
+  useEffect(() => {
+    if (open) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    return () => { document.body.style.overflow = ""; };
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+      style={{ backdropFilter: "blur(2px)" }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+      >
+        <div className="px-6 pt-6 pb-2 flex items-start gap-3">
+          <div className="shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              className="w-6 h-6 text-red-600"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h2
+              id="confirm-dialog-title"
+              className="font-['Montserrat',sans-serif] text-[16px] sm:text-[18px] text-ds-dark-gray leading-normal"
+              style={{ fontWeight: 700 }}
+            >
+              {title}
+            </h2>
+          </div>
+        </div>
+        <div className="px-6 pb-4 pl-[68px] sm:pl-[72px]">
+          <p className="font-['Poppins',sans-serif] text-[13px] text-ds-gray leading-relaxed">
+            {message}
+          </p>
+        </div>
+        <div className="px-6 pb-6 flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 text-ds-dark-gray hover:bg-ds-light-gray rounded-lg text-sm font-medium transition-colors"
+            type="button"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-600 hover:bg-red-700 text-white"
+            type="button"
+            autoFocus
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Mobile card layout for a single template */
 function TemplateMobileCard({
   template,
   onToggleStatus,
   onEdit,
   onDuplicate,
-  onDelete,
+  onRequestDelete,
 }: {
   template: TemplateDocument;
   onToggleStatus: (id: string) => void;
   onEdit?: (id: string) => void;
   onDuplicate?: (id: string) => void;
-  onDelete?: (id: string) => void;
+  onRequestDelete?: (id: string) => void;
 }) {
   return (
     <div className="border border-ds-haze rounded-lg p-3 flex flex-col gap-2">
@@ -172,8 +265,8 @@ function TemplateMobileCard({
           <DownloadIcon />
           <span className="font-['Poppins',sans-serif] text-[11px]">Download</span>
         </button>
-        {!template.active && onDelete && (
-          <button onClick={() => onDelete(template.id)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer hover:bg-red-100 transition-colors text-red-600" title="Delete">
+        {!template.active && onRequestDelete && (
+          <button onClick={() => onRequestDelete(template.id)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer hover:bg-red-100 transition-colors text-red-600" title="Delete">
             <DeleteIcon />
             <span className="font-['Poppins',sans-serif] text-[11px]">Delete</span>
           </button>
@@ -195,6 +288,7 @@ const TEMPLATE_COLS: ColumnDef[] = [
 export function TemplateTable({ templates, searchQuery, showInactive, onToggleStatus, onEdit, onDuplicate, onDelete }: TemplateTableProps) {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const { gridStyle, startResize } = useResizableColumns(TEMPLATE_COLS, 100);
 
   const handleSort = (field: SortField) => {
@@ -204,6 +298,17 @@ export function TemplateTable({ templates, searchQuery, showInactive, onToggleSt
       setSortField(field);
       setSortDirection("asc");
     }
+  };
+
+  const pendingDeleteTemplate = pendingDeleteId
+    ? templates.find((t) => t.id === pendingDeleteId) ?? null
+    : null;
+
+  const handleConfirmDelete = () => {
+    if (pendingDeleteId && onDelete) {
+      onDelete(pendingDeleteId);
+    }
+    setPendingDeleteId(null);
   };
 
   const filteredAndSorted = useMemo(() => {
@@ -270,7 +375,7 @@ export function TemplateTable({ templates, searchQuery, showInactive, onToggleSt
                 onToggleStatus={onToggleStatus}
                 onEdit={onEdit}
                 onDuplicate={onDuplicate}
-                onDelete={onDelete}
+                onRequestDelete={setPendingDeleteId}
               />
             ))}
           </div>
@@ -389,7 +494,7 @@ export function TemplateTable({ templates, searchQuery, showInactive, onToggleSt
                       <button
                         className="flex items-center justify-center w-[30px] h-[38px] p-2.5 rounded-[5px] cursor-pointer hover:bg-red-100 transition-colors text-red-600"
                         title="Delete"
-                        onClick={() => onDelete(template.id)}
+                        onClick={() => setPendingDeleteId(template.id)}
                       >
                         <DeleteIcon />
                       </button>
@@ -401,6 +506,21 @@ export function TemplateTable({ templates, searchQuery, showInactive, onToggleSt
           </div>
         </div>
       </div>
+
+      {/* ===== Delete confirmation dialog ===== */}
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Delete this template?"
+        message={
+          pendingDeleteTemplate
+            ? `"${pendingDeleteTemplate.name}" will be permanently deleted. This action cannot be undone.`
+            : "This template will be permanently deleted. This action cannot be undone."
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }
