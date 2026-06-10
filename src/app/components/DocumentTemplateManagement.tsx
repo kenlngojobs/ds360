@@ -487,6 +487,25 @@ export function DocumentTemplateManagement() {
     setIsCreateTemplateModalOpen(true);
   }, [templateStore, templates]);
 
+  const handleDeleteTemplate = useCallback(async (id: string) => {
+    const template = templates.find((t) => t.id === id);
+    if (!template) return;
+    try {
+      await templatesApi.delete(id);
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      setTemplateStore((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      toast.success(`Template "${template.name}" deleted`);
+    } catch (err) {
+      toast.error("Failed to delete template", {
+        description: err instanceof Error ? err.message : "Please try again.",
+      });
+    }
+  }, [templates]);
+
   return (
     <div className="flex flex-col h-full bg-white p-3 sm:p-4 lg:p-5 gap-2.5 overflow-hidden">
       {/* Auth Error Banner */}
@@ -711,6 +730,7 @@ export function DocumentTemplateManagement() {
               onToggleStatus={handleToggleStatus}
               onEdit={handleEditTemplate}
               onDuplicate={handleDuplicateTemplate}
+              onDelete={handleDeleteTemplate}
             />
           </div>
         )}

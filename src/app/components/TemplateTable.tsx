@@ -25,6 +25,7 @@ interface TemplateTableProps {
   onToggleStatus: (id: string) => void;
   onEdit?: (id: string) => void;
   onDuplicate?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 type SortField = "name" | "status" | "description" | "approvalRequired" | "readOnly" | "internalUseOnly";
@@ -79,6 +80,17 @@ function DuplicateIcon() {
   );
 }
 
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className="w-[16px] h-[16px] sm:w-[18px] sm:h-[18px]" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  );
+}
+
 function DownloadIcon() {
   return (
     <svg viewBox="0 0 18 20" fill="none" className="w-[16px] h-[18px] sm:w-[18px] sm:h-[20px]">
@@ -93,11 +105,13 @@ function TemplateMobileCard({
   onToggleStatus,
   onEdit,
   onDuplicate,
+  onDelete,
 }: {
   template: TemplateDocument;
   onToggleStatus: (id: string) => void;
   onEdit?: (id: string) => void;
   onDuplicate?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }) {
   return (
     <div className="border border-ds-haze rounded-lg p-3 flex flex-col gap-2">
@@ -158,6 +172,12 @@ function TemplateMobileCard({
           <DownloadIcon />
           <span className="font-['Poppins',sans-serif] text-[11px]">Download</span>
         </button>
+        {!template.active && onDelete && (
+          <button onClick={() => onDelete(template.id)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer hover:bg-red-100 transition-colors text-red-600" title="Delete">
+            <DeleteIcon />
+            <span className="font-['Poppins',sans-serif] text-[11px]">Delete</span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -172,7 +192,7 @@ const TEMPLATE_COLS: ColumnDef[] = [
   { key: "internalUseOnly", initialWidth: 180, minWidth: 100 },
 ];
 
-export function TemplateTable({ templates, searchQuery, showInactive, onToggleStatus, onEdit, onDuplicate }: TemplateTableProps) {
+export function TemplateTable({ templates, searchQuery, showInactive, onToggleStatus, onEdit, onDuplicate, onDelete }: TemplateTableProps) {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const { gridStyle, startResize } = useResizableColumns(TEMPLATE_COLS, 100);
@@ -250,6 +270,7 @@ export function TemplateTable({ templates, searchQuery, showInactive, onToggleSt
                 onToggleStatus={onToggleStatus}
                 onEdit={onEdit}
                 onDuplicate={onDuplicate}
+                onDelete={onDelete}
               />
             ))}
           </div>
@@ -364,6 +385,15 @@ export function TemplateTable({ templates, searchQuery, showInactive, onToggleSt
                     >
                       <DownloadIcon />
                     </button>
+                    {!template.active && onDelete && (
+                      <button
+                        className="flex items-center justify-center w-[30px] h-[38px] p-2.5 rounded-[5px] cursor-pointer hover:bg-red-100 transition-colors text-red-600"
+                        title="Delete"
+                        onClick={() => onDelete(template.id)}
+                      >
+                        <DeleteIcon />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
