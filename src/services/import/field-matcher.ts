@@ -280,9 +280,29 @@ function mapSectionToWidgets(
   }
 
   if (section.type === "image") {
+    // Always wrap standalone widgets in a 1-col container so the canvas
+    // treats them as a single-cell row that fills the page width.
     return [{
-      id: makeId("w", sectionPath), type: "image", label: section.heading || "Image",
-      config: { src: "" }, confidence: 0.7, rationale: "Image section → image widget",
+      id: makeId("w", sectionPath + "-wrap"),
+      type: "container", label: section.heading || "Image",
+      config: {
+        structurePicked: true,
+        layout: "1col",
+        rows: JSON.stringify([[1]]),
+        direction: "vertical",
+        flexDirection: "column",
+      },
+      children: [[
+        [{
+          id: makeId("w", sectionPath),
+          type: "image",
+          label: section.heading || "Image",
+          config: { src: "" },
+          confidence: 0.7,
+          rationale: "Image section → image widget",
+        }],
+      ]],
+      confidence: 0.7, rationale: "Image → wrapped in 1-col container",
     }];
   }
 
@@ -302,21 +322,70 @@ function mapSectionToWidgets(
     if (rowGroups.length > 0 && (rowGroups.length > 1 || rowGroups[0].columns.length > 1)) {
       return buildRowContainers(rowGroups, sectionPath, section);
     }
-    const mappedFields = section.fields.map((f) => mapFieldToWidget(f, sectionPath));
+    // Single field, single column: wrap in a 1-col container with the
+    // field widget placed inside the cell.
+    const mappedFields = section.fields.map((f) => ({
+      field: f,
+      mapped: mapFieldToWidget(f, sectionPath),
+    }));
+    const cellChild = mappedFields[0];
+    const childWidget = cellChild
+      ? {
+          id: makeId("w", `${sectionPath}-c0-0-${cellChild.field.name}`),
+          type: cellChild.mapped.widgetType,
+          label: cellChild.field.name,
+          config: {
+            label: cellChild.field.name,
+            placeholder: `Enter ${cellChild.field.name}...`,
+          },
+          confidence: 0.7, rationale: "Field placed inside 1-col container",
+        }
+      : null;
     return [{
-      id: makeId("w", sectionPath), type: "container", label: section.heading || "Section",
-      config: { structurePicked: true, ...(section.style ? styleToConfig(section.style, "container") : {}) },
-      children: [], confidence: 0.7,
-      rationale: `Section → container (${mappedFields.length} fields)`,
-      fields: mappedFields,
+      id: makeId("w", sectionPath),
+      type: "container",
+      label: section.heading || "Section",
+      config: {
+        structurePicked: true,
+        layout: "1col",
+        rows: JSON.stringify([[1]]),
+        direction: "vertical",
+        flexDirection: "column",
+        ...(section.style ? styleToConfig(section.style, "container") : {}),
+      },
+      children: [[[childWidget].filter(Boolean) as WidgetNode[]]] as WidgetNode[][][],
+      confidence: 0.7,
+      rationale: `Section → 1-col container with ${mappedFields.length} field(s)`,
+      fields: mappedFields.map((m) => m.mapped),
     }];
   }
 
   if (section.content && section.content.trim()) {
+    // Wrap paragraph in a 1-col container so it fills the page width.
     return [{
-      id: makeId("w", sectionPath), type: "paragraph", label: section.content.slice(0, 80),
-      config: { text: section.content, ...(section.style ? styleToConfig(section.style, "paragraph") : {}) },
-      confidence: 0.6, rationale: "Paragraph → paragraph widget",
+      id: makeId("w", sectionPath + "-wrap"),
+      type: "container", label: section.content.slice(0, 80) || "Section",
+      config: {
+        structurePicked: true,
+        layout: "1col",
+        rows: JSON.stringify([[1]]),
+        direction: "vertical",
+        flexDirection: "column",
+        ...(section.style ? styleToConfig(section.style, "container") : {}),
+      },
+      children: [[
+        [{
+          id: makeId("w", sectionPath),
+          type: "paragraph",
+          label: section.content.slice(0, 80),
+          config: {
+            text: section.content,
+            ...(section.style ? styleToConfig(section.style, "paragraph") : {}),
+          },
+          confidence: 0.6, rationale: "Paragraph → paragraph widget",
+        }],
+      ]],
+      confidence: 0.6, rationale: "Paragraph → wrapped in 1-col container",
     }];
   }
   return [];
