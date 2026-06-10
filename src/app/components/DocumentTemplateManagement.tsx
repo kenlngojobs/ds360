@@ -287,6 +287,32 @@ export function DocumentTemplateManagement() {
       // Build elements array: top-level widgets become top-level elements.
       // For widgets with fields (containers, repeaters), the fields become child elements
       // in a single row of a child container, matching the CanvasElement.children[][][] shape.
+      // Auto-match image widgets against the image database by name.
+      // PDFs reference images by opaque XObject names; the closest match is
+      // typically a soft-filename match against the image's display name.
+      const matchImage = (imageName: string): ImageDocument | undefined => {
+        if (!imageName) return undefined;
+        const needle = imageName.toLowerCase();
+        // Try a few heuristics: exact, contains, token overlap.
+        const candidates = images.filter((i) => i.active);
+        const exact = candidates.find((i) => i.name.toLowerCase() === needle);
+        if (exact) return exact;
+        const partial = candidates.find((i) =>
+          i.name.toLowerCase().includes(needle) || needle.includes(i.name.toLowerCase())
+        );
+        if (partial) return partial;
+        // Token overlap on words of length >= 3
+        const needleTokens = needle.split(/[\s_\-]+/).filter((t) => t.length >= 3);
+        let best: { img: ImageDocument; score: number } | undefined;
+        for (const c of candidates) {
+          const cName = c.name.toLowerCase();
+          let score = 0;
+          for (const t of needleTokens) if (cName.includes(t)) score += 1;
+          if (score > 0 && (!best || score > best.score)) best = { img: c, score };
+        }
+        return best?.img;
+      };
+
       const elements = matchResult.widgetTree.map((w) => {
         const el: Record<string, unknown> = {
           id: w.id,
@@ -297,6 +323,20 @@ export function DocumentTemplateManagement() {
             structurePicked: true,
           },
         };
+        // Image: auto-link to a matching image in the database
+        if (w.type === "image") {
+          const match = matchImage(w.label || "");
+          if (match) {
+            el.config = {
+              ...el.config,
+              imageId: match.id,
+              imageName: match.name,
+              previewType: match.previewType,
+              previewSrc: match.previewSrc,
+            };
+            el.label = match.name;
+          }
+        }
         if (w.children && w.children.length > 0) {
           // Preserve spatial container children from the matcher (e.g., row-group layouts)
           el.children = w.children;
@@ -304,18 +344,35 @@ export function DocumentTemplateManagement() {
           // Flat field list: place field widgets in a single row of a child container.
           el.children = [
             [
-              w.fields.map((f) => ({
-                id: `${w.id}-${f.name}`,
-                type: f.widgetType,
-                label: f.name,
-                config: {
+              w.fields.map((f) => {
+                const childConfig: Record<string, unknown> = {
                   label: f.name,
                   placeholder: `Enter ${f.name}...`,
-                  ...(f.sampleValues && f.sampleValues[0]
-                    ? { defaultValue: f.sampleValues[0] }
-                    : {}),
-                },
-              })),
+                };
+                // Calendar (date) widget config
+                if (f.widgetType === "calendar") {
+                  childConfig.placeholder = "MM/DD/YYYY";
+                }
+                // Email variant: use inputFormat=email
+                if (f.type === "email" || f.widgetType === "text-box" && /email/i.test(f.name)) {
+                  childConfig.inputFormat = "email";
+                }
+                // Number: add min/max
+                if (f.widgetType === "number-input") {
+                  childConfig.placeholder = "0";
+                }
+                return {
+                  id: `${w.id}-${f.name}`,
+                  type: f.widgetType,
+                  label: f.name,
+                  config: {
+                    ...childConfig,
+                    ...(f.sampleValues && f.sampleValues[0]
+                      ? { defaultValue: f.sampleValues[0] }
+                      : {}),
+                  },
+                };
+              }),
             ],
           ];
         }

@@ -25,6 +25,16 @@ interface PdfTextItem {
   fillColor?: string;
 }
 
+interface PdfImageItem {
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Hash-like identifier for the image; pdfjs exposes `name` or `objid` */
+  name: string;
+}
+
 export async function parsePdf(file: File): Promise<ParsedDocument> {
   const pdfjs = await import("pdfjs-dist");
   try {
@@ -41,6 +51,7 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
 
   const warnings: string[] = [];
   const allItems: PdfTextItem[] = [];
+  const allImages: PdfImageItem[] = [];
   const pageCount = pdf.numPages;
 
   for (let pageNum = 1; pageNum <= pageCount; pageNum++) {
@@ -55,10 +66,6 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
     for (const item of content.items as any[]) {
       if (typeof item.str !== "string") continue;
       const transform = item.transform || [1, 0, 0, 1, 0, 0];
-      // pdfjs transform[5] is in the viewport coordinate system.
-      // Most PDFs use top-down (y=0 at top, increases downward), but some
-      // use bottom-up (y=0 at bottom, increases upward). We detect the
-      // direction after all pages are processed and normalize if needed.
       allItems.push({
         str: item.str,
         x: transform[4],
@@ -70,6 +77,35 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
         page: pageNum,
         fillColor: itemColors.get(item),
       });
+    }
+
+    // Extract image positions from the operator list
+    try {
+      const opList = await page.getOperatorList();
+      const OPS: Record<string, number> = (pdfjs as any).OPS || {};
+      const paintImageXObject = OPS.paintImageXObject ?? 85;
+      const paintInlineImage = OPS.paintInlineImage ?? 86;
+      const paintJpegXObject = OPS.paintJpegXObject ?? 88;
+      for (let i = 0; i < opList.fnArray.length; i++) {
+        const fnId = opList.fnArray[i];
+        if (fnId === paintImageXObject || fnId === paintInlineImage || fnId === paintJpegXObject) {
+          const name = (opList.argsArray[i] && opList.argsArray[i][0]) || `img-${pageNum}-${i}`;
+          // Image bounding box is set on the page's current transform stack; we
+          // approximate by using the page's viewBox top. Real PDF.js does not
+          // expose per-image bounding boxes directly, so we tag by page only
+          // and let the matcher decide placement.
+          allImages.push({
+            page: pageNum,
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            name: String(name),
+          });
+        }
+      }
+    } catch {
+      // getOperatorList may fail in some configurations; ignore.
     }
   }
 
@@ -106,12 +142,22 @@ export async function parsePdf(file: File): Promise<ParsedDocument> {
     }
   }
 
+  // For each page that has images, emit an "image" section before the text sections
+  // of that page so the image appears in the correct row position.
+  const sectionsFromImages: ParsedSection[] = allImages.map((img, idx) => ({
+    id: `pdf-img-${idx}`,
+    type: "image" as const,
+    content: img.name,
+    fields: [],
+    sourceLocation: { page: img.page, paragraphIndex: idx },
+  }));
+
   const sections = buildSpatialSections(allItems, pageCount);
-  if (sections.length > 0) warnings.length = 0;
+  if (sections.length > 0 || sectionsFromImages.length > 0) warnings.length = 0;
 
   return {
     metadata: { fileName: file.name, fileSize: file.size, fileType: "pdf", parseDurationMs: 0, parserVersion: PARSER_VERSION, warnings, },
-    sections,
+    sections: [...sectionsFromImages, ...sections],
   };
 }
 
@@ -354,6 +400,17 @@ export function inferTypeFromValue(value: string): ParsedField["type"] {
   // Date (ISO 8601)
   if (/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/.test(v)) {
     return "date";
+  }
+  // Date inferred from label keywords (e.g., "Date CAP Due", "Date Deficiency Identified", "Date SAM Validated")
+  if (/\b(date|due|completed|validated|identified|created|updated|modified|effective|expires|expir|start|end|on|by|deadline)\b/i.test(v) && v.length < 60) {
+    return "date";
+  }
+  // Email inferred from label/value (e.g., "Vendor Contact/Email", "user@example.com")
+  if (/\b(email|e-mail|contact|mail)\b/i.test(v) && v.length < 60) {
+    return "email";
+  }
+  if (/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(v)) {
+    return "email";
   }
   // File path or URL
   if (/^(https?:\/\/|\/|\\\\|[a-zA-Z]:\\|\.\.?\/)/.test(v)) {

@@ -42,6 +42,7 @@ export type FieldType =
   | "image"
   | "signature"
   | "table"
+  | "email"
   | "unknown";
 
 export type SourceLocation = {
