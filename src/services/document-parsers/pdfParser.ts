@@ -245,25 +245,50 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
   // 2. Cluster x-coords for column detection (tighter threshold for form alignment)
   const xClusters = clusterXCoords(items);
 
-  // 3. Process each row into a section
+  // 2.5. Compute median inter-row gap so we can detect unusually large
+  //      gaps as divider lines (common in form templates).
+  const yGaps: number[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const prevPage = rows[i - 1][0].page;
+    const thisPage = rows[i][0].page;
+    if (prevPage !== thisPage) continue;
+    const gap = Math.abs(rows[i][0].y - rows[i - 1][0].y);
+    if (gap > 0) yGaps.push(gap);
+  }
+  yGaps.sort((a, b) => a - b);
+  const medianGap = yGaps.length ? yGaps[Math.floor(yGaps.length / 2)] : 18;
+  // A divider is a gap significantly larger than the median line spacing
+  // AND large enough in absolute terms to be a separator (>30px)
+  const DIVIDER_GAP_MULTIPLIER = 1.8;
+  const DIVIDER_GAP_MIN = 30;
+
+  // 3. Process each row into a section, inserting divider sections where
+  //    a large gap separates two text rows.
   const sections: ParsedSection[] = [];
   let id = 0;
 
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+
+    // Divider detection: gap before this row exceeds threshold
+    if (i > 0 && rows[i - 1][0].page === row[0].page) {
+      const gap = Math.abs(row[0].y - rows[i - 1][0].y);
+      if (gap > Math.max(medianGap * DIVIDER_GAP_MULTIPLIER, DIVIDER_GAP_MIN)) {
+        sections.push({
+          id: `pdf-divider-${id++}`,
+          type: "divider",
+          content: "",
+          fields: [],
+          sourceLocation: { page: row[0].page, paragraphIndex: i },
+        });
+      }
+    }
+
     const text = row.map((r) => r.str).join(" ");
     const trimmed = text.trim();
 
-    // Skip completely empty rows → divider/spacer
-    if (!trimmed) {
-      sections.push({
-        id: `pdf-s${id++}`,
-        type: "spacer",
-        content: "",
-        fields: [],
-        sourceLocation: { page: row[0]?.page ?? 1, paragraphIndex: id - 1 },
-      });
-      continue;
-    }
+    // Skip completely empty rows (between-row gaps that weren't large enough)
+    if (!trimmed) continue;
 
     // Skip footer markers
     const lower = trimmed.toLowerCase();

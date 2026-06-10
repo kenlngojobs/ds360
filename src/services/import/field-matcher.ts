@@ -288,6 +288,14 @@ function mapSectionToWidgets(
 
   if (section.type === "spacer") return [];
 
+  if (section.type === "divider") {
+    return [{
+      id: makeId("w", sectionPath), type: "divider", label: "Divider",
+      config: { style: "solid", color: "#E5E5EA", thickness: 1, paddingTop: 0, paddingBottom: 0 },
+      confidence: 0.85, rationale: "Empty row gap → divider widget",
+    }];
+  }
+
   // Paragraph with fields: detect row groups
   if (section.fields.length > 0) {
     const rowGroups = detectRowGroups(section.fields);

@@ -28,7 +28,8 @@ export type SectionType =
   | "list"
   | "form"
   | "image"
-  | "spacer";
+  | "spacer"
+  | "divider";
 
 export type FieldType =
   | "text"
