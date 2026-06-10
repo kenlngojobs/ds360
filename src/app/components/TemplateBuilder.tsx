@@ -2588,7 +2588,8 @@ function CanvasItem({
       /* ── Container (unified: nestable columns/subgroup/vertical/horizontal) ── */
       case "container": {
         // typeof guard: handle both boolean and string values from deserialization
-        const structurePicked = typeof c.structurePicked === 'boolean' ? c.structurePicked : c.structurePicked === 'true';
+        const hasLayout = !!c.layout && String(c.layout) !== "";
+        const structurePicked = typeof c.structurePicked === 'boolean' ? c.structurePicked : c.structurePicked === 'true' || hasLayout;
         // Not yet configured — show the structure picker overlay (hidden in preview)
         if (!structurePicked) {
           if (previewMode) return null;
