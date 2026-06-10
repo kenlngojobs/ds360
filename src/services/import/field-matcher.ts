@@ -249,9 +249,27 @@ function mapSectionToWidgets(
       }];
     }
     return [{
-      id: makeId("w", sectionPath), type: "header", label: section.heading,
-      config: { text: section.heading, tag: "H2", ...(section.style ? styleToConfig(section.style, "header") : {}) },
-      confidence: 0.8, rationale: "Section heading → header widget",
+      id: makeId("w", sectionPath),
+      type: "container",
+      label: section.heading || "Header",
+      config: {
+        structurePicked: true,
+        layout: "1col",
+        rows: JSON.stringify([[1]]),
+        direction: "vertical",
+        flexDirection: "column",
+        ...(section.style ? styleToConfig(section.style, "container") : {}),
+      },
+      children: [[
+        [{
+          id: makeId("w", sectionPath + "-hdr"),
+          type: "header",
+          label: section.heading,
+          config: { text: section.heading, tag: "H2", ...(section.style ? styleToConfig(section.style, "header") : {}) },
+          confidence: 0.8, rationale: "Header widget inside 1-col container",
+        }],
+      ]],
+      confidence: 0.8, rationale: "Section heading → wrapped in 1-col container",
     }];
   }
 
@@ -309,10 +327,29 @@ function mapSectionToWidgets(
   if (section.type === "spacer") return [];
 
   if (section.type === "divider") {
+    // Wrap divider in a 1-col container so it lives inside a row like
+    // every other imported widget.
     return [{
-      id: makeId("w", sectionPath), type: "divider", label: "Divider",
-      config: { style: "solid", color: "#E5E5EA", thickness: 1, paddingTop: 0, paddingBottom: 0 },
-      confidence: 0.85, rationale: "Empty row gap → divider widget",
+      id: makeId("w", sectionPath + "-wrap"),
+      type: "container",
+      label: "Divider",
+      config: {
+        structurePicked: true,
+        layout: "1col",
+        rows: JSON.stringify([[1]]),
+        direction: "vertical",
+        flexDirection: "column",
+      },
+      children: [[
+        [{
+          id: makeId("w", sectionPath),
+          type: "divider",
+          label: "Divider",
+          config: { style: "solid", color: "#E5E5EA", thickness: 1, paddingTop: 0, paddingBottom: 0 },
+          confidence: 0.85, rationale: "Divider widget inside 1-col container",
+        }],
+      ]],
+      confidence: 0.85, rationale: "Divider → wrapped in 1-col container",
     }];
   }
 
