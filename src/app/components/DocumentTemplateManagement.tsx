@@ -12,6 +12,7 @@ import { ImportTemplateModal } from "./ImportTemplateModal";
 import { ImportPreviewPanel } from "./ImportPreviewPanel";
 import type { ParsedDocument } from "../../services/document-parsers/types";
 import type { MatchResult } from "../../services/import/field-matcher";
+import type { CanvasElement } from "./template-builder-types";
 import { emitImportStart, emitParseComplete, emitParseError, emitMatchComplete, emitApply } from "../../services/import/telemetry";
 import {
   templatesApi,
@@ -52,6 +53,61 @@ export function DocumentTemplateManagement() {
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  /**
+   * Data migration for pre-fix imported templates.
+   * Containers saved before the structurePicked fix are missing
+   * layout/rows and show the structure picker instead of their content.
+   * This patches all container elements to be renderable.
+   */
+  const migrateElements = useCallback((elements: CanvasElement[]): CanvasElement[] => {
+    return elements.map((el) => {
+      if (el.type !== "container") return el;
+      const cfg = el.config || {};
+      const hasLayout = !!cfg.layout && String(cfg.layout) !== "";
+      const hasRows = !!cfg.rows && String(cfg.rows) !== "";
+      const hasChildren = el.children && el.children.length > 0 && el.children[0].length > 0;
+      // Case 1: Has children but no layout — infer from children structure
+      if (hasChildren && !hasLayout) {
+        const row = el.children![0];
+        const colCount = row.length;
+        const layoutMap: Record<number, string> = { 1: "1col", 2: "2col", 3: "3col", 4: "4col" };
+        return {
+          ...el,
+          config: {
+            ...cfg,
+            layout: layoutMap[colCount] || "1col",
+            rows: JSON.stringify([row.map(() => 1)]),
+            direction: "horizontal",
+            flexDirection: "row",
+            structurePicked: true,
+          },
+        };
+      }
+      // Case 2: No layout at all — single-cell fallback
+      if (!hasLayout && !hasRows) {
+        return {
+          ...el,
+          config: {
+            ...cfg,
+            layout: "1col",
+            rows: "[[1]]",
+            direction: "vertical",
+            flexDirection: "column",
+            structurePicked: true,
+          },
+        };
+      }
+      // Case 3: Has layout but no structurePicked — just set the flag
+      if (!cfg.structurePicked) {
+        return {
+          ...el,
+          config: { ...cfg, structurePicked: true },
+        };
+      }
+      return el;
+    });
+  }, []);
+
   // ── Load data from API on mount ─────────────────────────────────────────────
   useEffect(() => {
     // Load templates
@@ -68,11 +124,13 @@ export function DocumentTemplateManagement() {
             console.log('[HYDRATE] getOne result:', full);
             if (full.configJson !== undefined || full.elementsJson !== undefined || full.typographyJson !== undefined) {
               const configParsed = JSON.parse(full.configJson ?? '{}');
+              const rawElements = JSON.parse(full.elementsJson ?? '[]');
+              const migratedElements = migrateContainerElements(rawElements);
               const parsed: SavedTemplateData = {
                 templateName: full.name,
                 templateType: full.templateTypeId || configParsed.reportTemplateType || '',
                 config: configParsed,
-                elements: JSON.parse(full.elementsJson ?? '[]'),
+                elements: migratedElements,
                 canvasConfig: full.typographyJson ? JSON.parse(full.typographyJson) : {},
               };
               console.log('[HYDRATE] storing in templateStore:', tmpl.id, parsed);
