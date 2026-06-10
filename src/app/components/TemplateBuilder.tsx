@@ -4041,7 +4041,12 @@ function ContainerCell({
           ? "outline-2 outline-dashed outline-offset-[-2px] outline-ds-purple/20 hover:outline-ds-purple/40"
           : ""
       }`}
-      style={{ flex: cellFlex, minHeight: isEmpty && !previewMode ? 40 : undefined }}
+      style={{
+        flex: cellFlex,
+        width: "100%",
+        minWidth: 0,
+        minHeight: isEmpty && !previewMode ? 40 : undefined,
+      }}
     >
       {isEmpty ? (
         previewMode ? null : (
@@ -4052,7 +4057,7 @@ function ContainerCell({
         </div>
         )
       ) : (
-        <div className="flex flex-1" style={{
+        <div className="flex flex-1 w-full" style={{
           flexDirection: cellFlexDirection,
           justifyContent: cellJustifyContent,
           alignItems: cellAlignItems,
@@ -4073,7 +4078,7 @@ function ContainerCell({
             const isRow = cellFlexDirection === "row" || cellFlexDirection === "row-reverse";
             const isFullWidth = contentWidth === "full";
             return (
-            <div key={child.id} style={{
+            <div key={child.id} className={isFullWidth && !isRow ? "w-full" : undefined} style={{
               width: isFullWidth && !isRow ? "100%" : undefined,
               flex: isFullWidth && isRow ? "1 1 0%" : undefined,
               minWidth: isRow ? 0 : undefined,
