@@ -139,7 +139,7 @@ function clusterXCoords(items: PdfTextItem[]): number[] {
   const clusters: number[] = [];
   let cur: number[] = [];
   for (let i = 0; i < xv.length; i++) {
-    if (cur.length === 0 || Math.abs(xv[i] - cur[cur.length - 1]) < 15) {
+    if (cur.length === 0 || Math.abs(xv[i] - cur[cur.length - 1]) < 20) {
       cur.push(xv[i]);
     } else {
       clusters.push(Math.round(cur.reduce((s, v) => s + v, 0) / cur.length));
@@ -151,12 +151,12 @@ function clusterXCoords(items: PdfTextItem[]): number[] {
 }
 
 function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSection[] {
-  // Group items by y-row proximity
+  // 1. Group items by row (y-coordinate proximity)
   const rows: PdfTextItem[][] = [];
   let curRow: PdfTextItem[] = [];
   items.sort((a, b) => a.y - b.y || a.x - b.x);
   for (const it of items) {
-    if (curRow.length === 0 || Math.abs(it.y - curRow[0].y) < 12) {
+    if (curRow.length === 0 || Math.abs(it.y - curRow[0].y) < 16) {
       curRow.push(it);
     } else {
       if (curRow.length) rows.push([...curRow]);
@@ -165,59 +165,72 @@ function buildSpatialSections(items: PdfTextItem[], pageCount: number): ParsedSe
   }
   if (curRow.length) rows.push([...curRow]);
 
-  // Cluster x-coords across all items for column detection
+  // 2. Cluster x-coords for column detection
   const xClusters = clusterXCoords(items);
 
+  // 3. Process each row into a section
   const sections: ParsedSection[] = [];
   let id = 0;
-  let rowIdx = 0;
 
   for (const row of rows) {
     const text = row.map((r) => r.str).join(" ");
-    const first = row[0];
-    const isHeading = row.length === 1 && text.length < 80 && text === text.toUpperCase() ||
-      /^\d+(\.\d+)*\s+\S/.test(text);
 
-    // Build style from first item in row — normalize font and extract alignment
+    // Skip empty/underline-only rows
+    if (!text.trim() || /^[_\-\s]+$/.test(text.trim())) continue;
+
+    const first = row[0];
+
+    // Group items by column within the row
+    const colMap = new Map<number, PdfTextItem[]>();
+    for (const r of row) {
+      const colIndex = xClusters.findIndex((cx) => Math.abs(r.x - cx) < 20);
+      const ci = colIndex >= 0 ? colIndex : 0;
+      if (!colMap.has(ci)) colMap.set(ci, []);
+      colMap.get(ci)!.push(r);
+    }
+
+    // Build fields: one field per column (joined text)
+    const fields: ParsedField[] = [];
+    for (const [ci, colItems] of [...colMap.entries()].sort((a, b) => a[0] - b[0])) {
+      const joinedText = colItems.map((c) => c.str).join(" ").trim();
+      if (!joinedText) continue;
+      const name = joinedText.length > 60 ? joinedText.slice(0, 60) + "..." : joinedText;
+      fields.push({
+        name,
+        type: inferTypeFromValue(joinedText),
+        value: joinedText,
+        sampleValues: [joinedText],
+        confidence: 0.7,
+        rationale: `PDF text at x=${Math.round(colItems[0].x)}, col=${ci}`,
+        sourceLocation: { rowIndex: id, columnIndex: ci },
+      });
+    }
+
+    // Heading detection: ALL CAPS short text, or section headers like "1. Section Name"
+    const isAllCaps = text === text.toUpperCase() && text.length > 3 && text.length < 100;
+    const isNumberedSection = /^\d+[\.\)]?\s+[A-Z]/.test(text) && fields.length === 1;
+    const isHeading = isAllCaps || isNumberedSection;
+
     const style: SectionStyle | undefined = (first.fillColor || first.fontSize) ? {
       color: first.fillColor,
       fontSize: first.fontSize ? normalizeFontSize(first.fontSize) : undefined,
       fontFamily: first.fontName || undefined,
-      textAlign: xClusters.length > 1 && row.length === 1
-        ? (first.x < xClusters[Math.floor(xClusters.length / 2)] ? "left" : "right")
-        : undefined,
     } : undefined;
 
-    // Assign column indices based on x-clusters
-    const fields: ParsedField[] = [];
-    for (const r of row) {
-      const colIndex = xClusters.findIndex((cx) => Math.abs(r.x - cx) < 15);
-      const fieldName = r.str.slice(0, 30);
-      fields.push({
-        name: fieldName,
-        type: inferTypeFromValue(r.str),
-        value: r.str,
-        sampleValues: [r.str],
-        confidence: 0.7,
-        rationale: `PDF text item at x=${Math.round(r.x)}, col=${colIndex}`,
-        sourceLocation: { rowIndex: rowIdx, columnIndex: colIndex >= 0 ? colIndex : 0 },
-      });
-    }
-
+    const sectionId = `pdf-s${id++}`;
     sections.push({
-      id: `pdf-s${id++}`,
+      id: sectionId,
       type: isHeading ? "heading" : "paragraph",
       heading: isHeading ? text : undefined,
       content: text,
       fields,
       sourceLocation: {
         page: first.page,
-        paragraphIndex: id,
-        columnIndex: row.length > 1 ? xClusters.findIndex((cx) => Math.abs(first.x - cx) < 15) : 0,
+        paragraphIndex: id - 1,
+        columnIndex: 0,
       },
       style,
     });
-    rowIdx++;
   }
 
   return sections;
